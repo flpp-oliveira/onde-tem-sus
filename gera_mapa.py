@@ -37,7 +37,13 @@ DATA = os.path.join(AQUI, "BASE_DE_DADOS_CNES_%s" % COMP)
 SAIDA = os.path.join(AQUI, "mapa_rede_sus_%s.html" % COMP)
 P = lambda n: os.path.join(DATA, "%s%s.csv" % (n, COMP))
 
-LAT_MIN, LAT_MAX, LON_MIN, LON_MAX = -34.0, 5.5, -74.5, -33.0
+# Caixa de sanidade da coordenada: pega dígito trocado e sinal invertido.
+# LON_MAX era -33.0, a ponta leste do continente — o que excluía Fernando
+# de Noronha (longitude ~-32,4), e com ela o único hospital da ilha, as duas
+# unidades de saúde da família, o ambulatório e a farmácia. -28.8 passa a
+# leste do arquipélago e do Atol das Rocas, e continua rejeitando o que caiu
+# no Atlântico por erro de digitação.
+LAT_MIN, LAT_MAX, LON_MIN, LON_MAX = -34.0, 5.5, -74.5, -28.8
 
 csv.field_size_limit(10 ** 7)
 def ler(nome):

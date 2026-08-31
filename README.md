@@ -4,7 +4,7 @@ Mapa interativo dos estabelecimentos de saúde ativos com convênio SUS no
 território nacional, construído a partir da base do Cadastro Nacional de
 Estabelecimentos de Saúde (CNES/DATASUS), competência 06/2026.
 
-**108.553 estabelecimentos** — 81.756 da administração pública e 26.797
+**108.558 estabelecimentos** — 81.761 da administração pública e 26.797
 privados conveniados, em 28 tipos de unidade, 5.570 municípios e 27 UFs.
 
 O mapa roda inteiramente no navegador: o desenho, os filtros e a busca não
