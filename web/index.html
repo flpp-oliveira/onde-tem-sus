@@ -89,6 +89,9 @@ select,input,button{
   border-radius:4px;padding:6px 8px;width:100%;
 }
 select:disabled{color:var(--muted);background:transparent}
+/* opção que não existe no recorte atual — o navegador já esmaece, mas o
+   padrão varia entre eles, então o tom fica explícito */
+option:disabled{color:var(--muted)}
 button{cursor:pointer;background:var(--surface)}
 button:hover{background:var(--plane)}
 .linha{display:flex;gap:7px}
@@ -914,6 +917,66 @@ fMun.onchange = () => {
   filtra(); verTudo();
 };
 
+// ---- disponibilidade das opções --------------------------------------------
+// Tipo, serviço e natureza jurídica são facetas independentes, não hierarquia:
+// não faria sentido encadeá-las como UF -> município -> bairro, porque não há
+// ordem natural entre elas — procurar "hospitais que têm oncologia" e "onde tem
+// oncologia, seja qual for o tipo" são caminhos igualmente legítimos, e
+// encadear obrigaria a escolher um e quebrar o outro. O que se faz é apagar da
+// lista o que não existe no recorte atual: num município mediano, 82% dos tipos
+// e 70% dos serviços não devolvem nada, e hoje o usuário só descobre depois de
+// escolher.
+//
+// Cada faceta se calcula IGNORANDO a própria escolha. Se o tipo entrasse no
+// cálculo da própria lista de tipos, escolher um zeraria todos os outros e não
+// daria para trocar sem limpar tudo antes.
+//
+// A opção já escolhida nunca é desabilitada: <select> com a opção selecionada
+// desabilitada é estado impossível. Quando ela fica sem resultado no recorte
+// (escolher Transplante e depois Fernando de Noronha, por exemplo), ela ganha
+// um aviso no rótulo e o mapa mostra 0. A escolha do usuário é preservada e a
+// interface diz por que não há nada, em vez de trocar a pergunta dele em
+// silêncio.
+const SEM_RESULTADO = ' — nenhum neste recorte';
+// vetores de marcação reaproveitados entre chamadas. Set aqui custava caro:
+// sem recorte são 446 mil add() por troca de filtro, o que media 7,4 ms.
+const dTipo = new Uint8Array(D.tipos.length),
+      dServ = new Uint8Array(D.servicos.length),
+      dEsf  = new Uint8Array(2);
+function aplicaDisponiveis(sel, marcas){
+  for(const o of sel.options){
+    if(o.dataset.rotulo === undefined) o.dataset.rotulo = o.text;
+    const base = o.dataset.rotulo;
+    if(o.value === ''){ if(o.disabled) o.disabled = false; if(o.text!==base) o.text = base; continue; }
+    const tem = marcas[+o.value] === 1, escolhida = (o.value === sel.value);
+    const desab = !tem && !escolhida;
+    const rotulo = (!tem && escolhida) ? base + SEM_RESULTADO : base;
+    if(o.disabled !== desab) o.disabled = desab;   // só toca no DOM se mudou
+    if(o.text !== rotulo) o.text = rotulo;
+  }
+}
+function atualizaDisponibilidade(u, mu, ba, t, sv, e){
+  dTipo.fill(0); dServ.fill(0); dEsf.fill(0);
+  for(let i=0;i<N;i++){
+    let geo = 1;
+    if(mu>=0){ if(mun[i]!==mu) geo=0; }
+    else if(u>=0 && D.munUF[mun[i]]!==u) geo=0;
+    if(geo && ba>=0 && bairro[i]!==ba) geo=0;
+    if(!geo) continue;
+    const S = servIdx[i];
+    const okT = t<0 || tipo[i]===t;
+    const okE = e<0 || esfera[i]===e;
+    let okS = sv<0;
+    if(!okS){ for(let k=0;k<S.length;k++) if(S[k]===sv){ okS = true; break; } }
+    if(okS && okE) dTipo[tipo[i]] = 1;
+    if(okT && okE){ for(let k=0;k<S.length;k++) dServ[S[k]] = 1; }
+    if(okT && okS) dEsf[esfera[i]] = 1;
+  }
+  aplicaDisponiveis(fTipo, dTipo);
+  aplicaDisponiveis(fServ, dServ);
+  aplicaDisponiveis(fEsfera, dEsf);
+}
+
 function filtra(){
   const u = fUF.value===''? -1 : +fUF.value;
   const mu = fMun.value===''? -1 : +fMun.value;
@@ -955,6 +1018,7 @@ function filtra(){
   const tot = pub+conv || 1;
   g('barPub').style.width = (100*pub/tot)+'%';
   g('barConv').style.width = (100*conv/tot)+'%';
+  atualizaDisponibilidade(u, mu, ba, t, sv, e);
   if(sel>=0 && !vis[sel]) fecha();
   if(obs) listaProximos();
   desenha();
