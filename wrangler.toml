@@ -1,17 +1,16 @@
 # Configuração do projeto Cloudflare Pages deste site.
 #
-# O nome do banco D1 e o database_id são preenchidos depois de criar o banco
-# de verdade (wrangler d1 create mapa-sus-reports) — o id abaixo é só
-# placeholder até lá.
+# O database_id identifica o banco na conta Cloudflare; não é credencial e
+# sozinho não dá acesso a nada — quem autentica é o token do wrangler.
 
-name = "mapa-sus-cnes"
+name = "onde-tem-sus"
 compatibility_date = "2026-08-25"
 pages_build_output_dir = "web"
 
 [[d1_databases]]
 binding = "DB"                       # nome usado no código: env.DB
 database_name = "mapa-sus-reports"
-database_id = "PREENCHER_APOS_CRIAR_O_BANCO"
+database_id = "d24b75c5-33de-4f60-a2a4-16eeaa0cc6da"
 
 [[r2_buckets]]
 binding = "EVIDENCIAS"               # nome usado no código: env.EVIDENCIAS
