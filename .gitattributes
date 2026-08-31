@@ -1,0 +1,11 @@
+# Dados e saídas não sofrem conversão de fim de linha. O Git no Windows converte
+# LF para CRLF por padrão, o que alteraria os bytes de base_tratada_202606.csv e
+# invalidaria o SHA-256 registrado na ficha de citação.
+*.csv   -text
+*.json  -text
+*.txt   -text
+*.html  -text
+
+*.xlsx  binary
+*.XLS   binary
+*.docx  binary

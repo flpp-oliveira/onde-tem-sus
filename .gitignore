@@ -1,0 +1,27 @@
+# --- base bruta do CNES -------------------------------------------------------
+# 2,82 GB em 109 CSVs, e sete deles passam do limite de 100 MB por arquivo do
+# GitHub — o pacote não cabe aqui de forma alguma. Baixe da fonte oficial na
+# competência declarada em docs/FICHA_DE_CITACAO.md e confira pelos SHA-256 em
+# docs/HASHES_BASE_202606.txt.
+BASE_DE_DADOS_CNES_*/
+BASE_DE_DADOS_CNES_*.zip
+
+# --- saídas regeneráveis ------------------------------------------------------
+# Tudo abaixo sai de `python gera_mapa.py 202606`. A pasta web/ é a exceção
+# deliberada: é ela que o Cloudflare Pages publica, então fica versionada.
+mapa_rede_sus_*.html
+base_tratada_*.csv
+auditoria_bairros_*.csv
+
+# --- ambiente -----------------------------------------------------------------
+# Estado local do wrangler: o banco D1 e o bucket R2 de teste desta máquina.
+.wrangler/
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+venv/
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store

@@ -1,0 +1,1394 @@
+<!doctype html>
+<html lang="pt-BR">
+<meta charset="utf-8">
+<!-- Sem esta meta, navegador de celular adota uma viewport virtual de ~980 px e
+     reduz a página por escala. Como 980 > 820, a regra @media (max-width:820px)
+     no fim desta folha nunca é satisfeita, e o layout móvel — que existe — fica
+     inerte: o celular recebe o desktop miniaturizado. -->
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Mapa dos estabelecimentos de saúde ativos com convênio SUS no Brasil, a partir do CNES/DATASUS, competência 06/2026.">
+<title>Onde Tem SUS — a rede do CNES no mapa, 06/2026</title>
+<style>
+:root{
+  color-scheme: light;
+  --surface:#fcfcfb; --plane:#f9f9f7;
+  --ink:#0b0b0b; --ink2:#52514e; --muted:#898781;
+  --line:#e1e0d9; --border:rgba(11,11,11,.10);
+  /* laranja no passo mais escuro: sobre a terra bege o passo claro cai para
+     2,84:1, abaixo do piso de 3:1 (validado contra a superfície real) */
+  --pub:#2a78d6; --conv:#d95926;
+  --malha:rgba(84,74,56,.38);
+  --mar:#aacbdd; --terra:#f0ece1; --terra-limpa:#ffffff;
+}
+/* O mapa é claro por padrão, independentemente da preferência do sistema: o
+   painel de controle é fixo em escuro (ver <aside>), e o contraste do desenho
+   depende de o mapa ser a superfície clara. O escuro fica no botão de tema. */
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --surface:#1a1a19; --plane:#0d0d0d;
+  --ink:#fff; --ink2:#c3c2b7; --muted:#898781;
+  --line:#2c2c2a; --border:rgba(255,255,255,.10);
+  --pub:#3987e5; --conv:#d95926;
+  --malha:rgba(255,255,255,.22);
+  --mar:#0d1a24; --terra:#262624; --terra-limpa:#2b2b29;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{
+  background:var(--plane); color:var(--ink);
+  font:13.5px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;
+  display:flex; overflow:hidden;
+}
+
+/* ---------- painel de controle ---------- */
+aside{
+  /* o painel de controle não acompanha o tema: fica sempre escuro, para o mapa
+     ser a única superfície clara e concentrar a atenção */
+  color-scheme: dark;
+  --surface:#161a20; --plane:#1d222a;
+  --ink:#f2f5f8; --ink2:#b7c0cb; --muted:#78828e;
+  --line:#252b34; --border:rgba(255,255,255,.11);
+  width:296px; flex:none; height:100%; overflow-y:auto;
+  background:var(--surface); color:var(--ink);
+  border-right:1px solid rgba(0,0,0,.28);
+  padding:18px 18px 22px; display:flex; flex-direction:column; gap:20px;
+}
+.cabeca h1{font-size:15px;font-weight:650;margin:0 0 3px;letter-spacing:-.01em;line-height:1.3}
+/* ---------- marca ----------
+   O símbolo é o mesmo anel que o mapa desenha em cada aglomeração, dividido
+   entre público e conveniado: a marca é o elemento de dado, não um enfeite.
+   O azul do "SUS" é o matiz oficial (Pantone 287C, #005BAA) clareado até passar
+   no contraste — o oficial rende 2,56:1 sobre o painel escuro, abaixo do piso de
+   4,5:1; este rende 5,56:1. */
+/* A margem de baixo não é o vão que se vê: o símbolo tem 30 px e o texto 26, e
+   como estão centrados sobram 2,5 px de caixa vazia abaixo do texto. Medido: com
+   margem de 5 px o vão do texto até a descrição era de 5,5 px, apertado; os 11
+   px abaixo rendem ≈15,5 px. Ao mexer aqui, meça do texto, não da caixa. */
+/* h1.marca, e não .marca: `.cabeca h1` acima tem especificidade (0,1,1) e
+   venceria uma classe sozinha, deixando a margem daqui sem efeito. */
+h1.marca{display:flex;align-items:center;gap:9px;margin:0 0 11px}
+.marca svg{flex:none;display:block}
+.marca span{font-size:19px;font-weight:650;letter-spacing:-.02em;line-height:1.1}
+.marca b{font-weight:650;color:#3a97e0}
+.cabeca p{margin:0;font-size:12px;color:var(--muted);line-height:1.45}
+.comp{
+  display:inline-block;margin-top:8px;font-size:11px;letter-spacing:.04em;
+  font-variant-numeric:tabular-nums;color:var(--ink2);
+  border:1px solid var(--border);border-radius:3px;padding:2px 7px;
+}
+section h2{
+  font-size:10.5px;font-weight:650;text-transform:uppercase;letter-spacing:.09em;
+  color:var(--muted);margin:0 0 9px;padding-bottom:6px;border-bottom:1px solid var(--line);
+}
+.campo{margin-bottom:11px}
+.campo:last-child{margin-bottom:0}
+label{display:block;font-size:11.5px;color:var(--ink2);margin-bottom:3px}
+select,input,button{
+  font:inherit;font-size:12.5px;color:var(--ink);
+  background:var(--plane);border:1px solid var(--border);
+  border-radius:4px;padding:6px 8px;width:100%;
+}
+select:disabled{color:var(--muted);background:transparent}
+button{cursor:pointer;background:var(--surface)}
+button:hover{background:var(--plane)}
+.linha{display:flex;gap:7px}
+.linha button{width:auto;flex:1}
+
+/* ---------- localização ---------- */
+.geoinfo{
+  margin-top:9px;font-size:11.5px;line-height:1.45;color:var(--ink2);
+  background:var(--plane);border:1px solid var(--border);border-radius:4px;padding:8px 9px;
+}
+.geoinfo b{font-variant-numeric:tabular-nums}
+.geoinfo .aviso{display:block;margin-top:6px;padding-top:6px;
+  border-top:1px solid var(--line);color:var(--muted);font-size:10.5px}
+.proximos{list-style:none;margin:10px 0 0;padding:0;counter-reset:p}
+.proximos li{border-bottom:1px solid var(--line)}
+.proximos li:last-child{border-bottom:0}
+.proximos button{
+  display:flex;gap:8px;align-items:baseline;text-align:left;border:0;background:none;
+  padding:7px 2px;border-radius:0;font-size:12px;line-height:1.3;
+}
+.proximos button:hover{background:var(--plane)}
+.proximos .dist{
+  flex:0 0 52px;font-variant-numeric:tabular-nums;font-weight:600;
+  color:var(--ink);font-size:11.5px;
+}
+.proximos .nm{flex:1;color:var(--ink2)}
+.proximos .nm small{display:block;color:var(--muted);font-size:10.5px}
+
+/* ---------- resumo ---------- */
+.resumo{margin-top:auto}
+.total b{font-size:29px;font-weight:650;line-height:1.05;letter-spacing:-.02em;
+  font-variant-numeric:tabular-nums;display:block;color:var(--ink)}
+.total span{font-size:12px;color:var(--muted);display:block}
+.barra{display:flex;height:5px;border-radius:3px;overflow:hidden;margin:11px 0 9px;background:var(--line)}
+.barra i{display:block;height:100%}
+.est{display:flex;justify-content:space-between;font-size:12px;color:var(--ink2);padding:1.5px 0}
+.est b{font-weight:600;font-variant-numeric:tabular-nums;color:var(--ink)}
+.chave{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px}
+.fonte{
+  margin-top:14px;padding-top:11px;border-top:1px solid var(--line);
+  font-size:10.5px;line-height:1.5;color:var(--muted);
+}
+
+/* ---------- mapa ---------- */
+main{flex:1;position:relative;min-width:0}
+canvas{display:block;width:100%;height:100%;cursor:grab}
+canvas.arrastando{cursor:grabbing}
+.zoom{position:absolute;right:12px;top:12px;display:flex;flex-direction:column;gap:5px}
+.zoom button{width:30px;height:30px;padding:0;font-size:15px;line-height:1}
+.credito{
+  position:absolute;right:8px;bottom:6px;font-size:10px;color:var(--muted);
+  background:var(--surface);border:1px solid var(--border);border-radius:3px;padding:2px 6px;
+}
+.escala{
+  position:absolute;left:12px;bottom:8px;font-size:10.5px;color:var(--ink2);
+  background:var(--surface);border:1px solid var(--border);border-radius:3px;
+  padding:3px 7px;display:flex;align-items:center;gap:7px;
+}
+.escala i{display:block;height:5px;border-left:1px solid var(--ink2);
+  border-right:1px solid var(--ink2);border-bottom:1px solid var(--ink2)}
+
+/* ---------- ficha ---------- */
+.card{
+  position:absolute;left:12px;top:12px;width:322px;max-height:calc(100% - 24px);
+  overflow:auto;background:var(--surface);border:1px solid var(--border);
+  border-radius:6px;padding:14px 16px;display:none;
+}
+.card.on{display:block}
+.card h2{font-size:14px;margin:0 22px 4px 0;line-height:1.3;font-weight:650}
+.tag{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--ink2);margin-bottom:10px}
+.fechar{position:absolute;right:8px;top:8px;border:0;background:none;color:var(--muted);
+  font-size:17px;padding:2px 5px;width:auto}
+dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-size:12.5px}
+dt{color:var(--muted);white-space:nowrap}
+dd{margin:0;color:var(--ink2)}
+.bloco{margin-top:11px;padding-top:10px;border-top:1px solid var(--line)}
+.bloco h3{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin:0 0 6px}
+.servs{display:flex;flex-wrap:wrap;gap:4px}
+.serv{font-size:11.5px;background:var(--plane);border:1px solid var(--border);
+  border-radius:3px;padding:2px 6px;color:var(--ink2)}
+.cnes{margin-top:11px;padding-top:9px;border-top:1px solid var(--line);
+  font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.reportar{width:100%;margin-top:10px;padding:8px 10px;border:1px solid var(--border);
+  border-radius:6px;background:var(--plane);color:var(--ink2);font-size:12px;
+  font-weight:600;text-align:center}
+.reportar:hover{background:var(--border)}
+#fReport{margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
+#fReport label{display:block;font-size:11.5px;color:var(--muted);margin:8px 0 4px}
+#fReport label:first-child{margin-top:0}
+#fReport select,#fReport textarea{width:100%;font:inherit;font-size:12.5px;
+  padding:6px 8px;border:1px solid var(--border);border-radius:5px;
+  background:var(--bg);color:var(--ink);resize:vertical}
+.reportarBotoes{display:flex;gap:8px;margin-top:10px}
+.reportarBotoes button{flex:1;width:auto;padding:7px 0;border-radius:5px;font-size:12.5px}
+#bReportCancela{border:1px solid var(--border);background:none;color:var(--ink2)}
+#bReportEnvia{border:0;background:var(--pub);color:#fff;font-weight:600}
+#bReportEnvia:disabled{opacity:.6}
+#rMsg{margin-top:8px;font-size:12px}
+#rMsg.ok{color:var(--pub)}
+#rMsg.erro{color:#c0392b}
+#rBlocoLocal{margin-top:6px}
+#rBlocoLocal input[type=text]{width:100%;font:inherit;font-size:12.5px;
+  padding:6px 8px;border:1px solid var(--border);border-radius:5px;
+  background:var(--bg);color:var(--ink);margin-top:2px}
+/* lado a lado. O `nowrap` no rótulo é o que segura o alinhamento: sem ele o
+   flex encolhe os itens até "Descrever endereço" quebrar em duas linhas
+   enquanto "Marcar no mapa" fica em uma, e os dois círculos deixam de
+   coincidir. O `wrap` no contêiner é a saída para telas muito estreitas —
+   aí as opções empilham inteiras, em vez de partir o texto no meio. */
+/* grade, não flex. Com flex as duas opções ficavam 4 px desencontradas na
+   vertical: as quebras de linha do HTML entre os <label> viram itens de
+   texto anônimos na linha flex, e o alinhamento passa a depender da base do
+   texto de cada um. A grade posiciona por célula e o desencontro some. */
+/* grade, não flex, e com o mesmo peso de seletor de `#fReport label`. Duas
+   coisas desalinhavam as opções aqui: a regra geral dos rótulos do
+   formulário (que é por id, vence a de classe) reimpunha `display:block` e
+   `margin-top:8px` só na segunda; e, no flex, as quebras de linha do HTML
+   entre os <label> viram itens de texto anônimos, deixando o alinhamento à
+   mercê da base do texto de cada um. */
+#fReport .escolhaLocal{display:grid;grid-template-columns:auto auto;
+  justify-content:start;column-gap:14px;align-items:center;margin:4px 0 8px;
+  font-size:12px;color:var(--ink2);line-height:1.2}
+#fReport .escolhaLocal label{display:flex;align-items:center;gap:6px;width:auto;
+  font-size:12px;line-height:1.2;color:var(--ink2);margin:0;white-space:nowrap}
+#fReport .escolhaLocal input[type=radio]{width:auto;margin:0;flex-shrink:0}
+#bMarcarMapa{width:100%;margin-top:8px;padding:7px 8px;border:1px dashed var(--border);
+  border-radius:5px;background:none;color:var(--ink2);font-size:12px;text-align:left}
+#bMarcarMapa:hover{background:var(--plane)}
+#rMarcado{margin-top:8px;font-size:11.5px;color:var(--pub);display:flex;
+  align-items:center;justify-content:space-between;gap:8px}
+#rMarcado button{width:auto;border:0;background:none;color:var(--muted);
+  font-size:11px;text-decoration:underline;padding:0}
+#rArquivo{margin-top:2px;font-size:11.5px;width:100%}
+#rArquivoErro{color:#c0392b;font-size:11px;margin-top:4px;display:none}
+.avisoMarcar{position:absolute;top:12px;left:50%;transform:translateX(-50%);
+  z-index:40;background:var(--surface);border:1px solid var(--border);
+  border-radius:8px;padding:9px 12px;font-size:12.5px;color:var(--ink);
+  box-shadow:0 4px 16px rgba(0,0,0,.18);display:flex;align-items:center;
+  gap:10px;max-width:88%;text-align:center}
+.avisoMarcar button{width:auto;border:1px solid var(--border);background:var(--plane);
+  color:var(--ink2);font-size:11.5px;padding:4px 9px;border-radius:5px;flex-shrink:0}
+.lista{list-style:none;margin:0;padding:0}
+.lista li{border-bottom:1px solid var(--line)}
+.lista li:last-child{border-bottom:0}
+.lista button{display:block;text-align:left;border:0;background:none;padding:8px 4px;
+  border-radius:0;font-size:12.5px;line-height:1.35}
+.lista button:hover{background:var(--plane)}
+.lista small{display:block;color:var(--muted);font-size:11.5px}
+.voltar{border:0;background:none;color:var(--ink2);font-size:12px;padding:0 0 9px;
+  text-decoration:underline;width:auto}
+
+@media (max-width:820px){
+  body{flex-direction:column}
+  aside{width:100%;height:auto;max-height:47%;border-right:0;border-bottom:1px solid var(--border)}
+}
+</style>
+
+<aside>
+  <div class="cabeca">
+    <h1 class="marca">
+      <svg width="30" height="30" viewBox="0 0 34 34" aria-hidden="true">
+        <circle cx="17" cy="17" r="14.5" fill="#fff"/>
+        <path d="M17 4.5 A12.5 12.5 0 0 1 26.4 25.2" fill="none" stroke="#2a78d6" stroke-width="5"/>
+        <path d="M26.4 25.2 A12.5 12.5 0 0 1 17 4.5" fill="none" stroke="#d95926" stroke-width="5"/>
+      </svg>
+      <span>Onde Tem <b>SUS</b></span>
+    </h1>
+    <p>Distribuição geográfica dos estabelecimentos ativos com convênio SUS no território nacional.</p>
+    <span class="comp">CNES · competência 06/2026</span>
+  </div>
+
+  <section>
+    <h2>Recorte territorial</h2>
+    <div class="campo">
+      <label for="fUF">Unidade da Federação</label>
+      <select id="fUF"><option value="">Todas as 27 UFs</option></select>
+    </div>
+    <div class="campo">
+      <label for="fMun">Município</label>
+      <select id="fMun" disabled><option value="">Selecione uma UF</option></select>
+    </div>
+    <div class="campo">
+      <label for="fBairro">Bairro</label>
+      <select id="fBairro" disabled><option value="">Selecione um município</option></select>
+    </div>
+  </section>
+
+  <section>
+    <h2>Recorte assistencial</h2>
+    <div class="campo">
+      <label for="fTipo">Tipo de estabelecimento</label>
+      <select id="fTipo"><option value="">Todos os tipos</option></select>
+    </div>
+    <div class="campo">
+      <label for="fServ">Serviço especializado</label>
+      <select id="fServ"><option value="">Todos os serviços</option></select>
+    </div>
+    <div class="campo">
+      <label for="fEsfera">Natureza jurídica</label>
+      <select id="fEsfera">
+        <option value="">Pública e privada conveniada</option>
+        <option value="0">Administração pública</option>
+        <option value="1">Privada conveniada</option>
+      </select>
+    </div>
+  </section>
+
+  <section>
+    <h2>Localização do observador</h2>
+    <button id="bGeo">Usar minha localização</button>
+    <div id="geoInfo" class="geoinfo" hidden></div>
+    <ol id="geoLista" class="proximos" hidden></ol>
+  </section>
+
+  <section>
+    <div class="linha">
+      <button id="bReset">Limpar recortes</button>
+      <button id="bTema" title="Alternar tema do mapa" aria-label="Alternar entre tema claro e escuro do mapa" style="flex:0 0 38px">◐</button>
+    </div>
+  </section>
+
+  <div class="resumo">
+    <h2 style="font-size:10.5px;font-weight:650;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);margin:0 0 9px;padding-bottom:6px;border-bottom:1px solid var(--line)">Recorte atual</h2>
+    <div class="total"><b id="nVis">0</b><span>estabelecimentos no recorte</span></div>
+    <div class="barra"><i id="barPub" style="background:var(--pub)"></i><i id="barConv" style="background:var(--conv)"></i></div>
+    <div class="est"><span><i class="chave" style="background:var(--pub)"></i>Administração pública</span><b id="nPub">0</b></div>
+    <div class="est"><span><i class="chave" style="background:var(--conv)"></i>Privada conveniada</span><b id="nConv">0</b></div>
+    <div class="est" style="margin-top:6px;padding-top:6px;border-top:1px solid var(--line)"><span>Municípios com cobertura</span><b id="nMun">0</b></div>
+    <div class="est"><span>Bairros distintos</span><b id="nBairro">0</b></div>
+    <div class="est"><span>Leitos SUS no recorte</span><b id="nLeitos">0</b></div>
+    <div class="fonte">
+      <b>Fonte:</b> BRASIL. Ministério da Saúde. DATASUS. Cadastro Nacional de
+      Estabelecimentos de Saúde (CNES), competência 06/2026.<br>
+      <b>Base cartográfica:</b> malha de unidades federativas, IBGE.<br>
+      <b>Localização:</b> coordenada declarada pelo próprio estabelecimento no
+      CNES, sem correção automática. Encontrou um pino no lugar errado? Abra a
+      ficha e use "Reportar localização".
+    </div>
+  </div>
+</aside>
+
+<main>
+  <!-- role="img" e não "application": o mapa não é operável por teclado, e
+       anunciá-lo como aplicação prometeria uma interação que não existe. O
+       conteúdo alternativo aponta para os controles do painel, que dão acesso
+       ao mesmo recorte sem depender do canvas. -->
+  <canvas id="cv" role="img"
+    aria-label="Mapa do Brasil com os estabelecimentos de saúde do recorte atual. Os números do recorte estão no painel, em Recorte atual.">
+    Mapa gráfico dos estabelecimentos de saúde. Esta versão não é navegável por
+    teclado ou leitor de tela; os mesmos dados podem ser recortados pelos
+    seletores de UF, município, bairro, tipo, serviço e natureza jurídica no
+    painel, que exibe os totais em texto.
+  </canvas>
+  <div class="zoom">
+    <button id="bMais" title="Ampliar" aria-label="Ampliar o mapa">+</button>
+    <button id="bMenos" title="Reduzir" aria-label="Reduzir o mapa">−</button>
+    <button id="bTudo" title="Enquadrar recorte" aria-label="Enquadrar o recorte atual">⤢</button>
+  </div>
+  <div class="escala"><i id="escBarra" style="width:60px"></i><span id="escTxt">—</span></div>
+  <div class="credito" id="credito">IBGE · CNES/DATASUS</div>
+  <!-- tabindex="-1" para receber foco por script ao abrir: sem isso, quem usa
+       leitor de tela não é avisado de que a ficha apareceu -->
+  <div class="card" id="card" role="dialog" aria-label="Ficha do estabelecimento" tabindex="-1">
+    <button class="fechar" id="bFechar" title="Fechar a ficha" aria-label="Fechar a ficha">×</button>
+    <div id="vLista" style="display:none">
+      <h2 id="lTitulo"></h2>
+      <div class="tag" id="lEnd"></div>
+      <ul class="lista" id="lItens"></ul>
+    </div>
+    <div id="vDetalhe">
+      <button class="voltar" id="bVoltar" style="display:none">← voltar à lista</button>
+      <h2 id="cNome"></h2>
+      <div class="tag"><span class="chave" id="cCor"></span><span id="cTipo"></span></div>
+      <dl>
+        <dt>Endereço</dt><dd id="cEnd"></dd>
+        <dt>Bairro</dt><dd id="cBairro"></dd>
+        <dt>Município</dt><dd id="cMun"></dd>
+        <dt>CEP</dt><dd id="cCep"></dd>
+        <dt>Telefone</dt><dd id="cTel"></dd>
+        <dt>Atendimento</dt><dd id="cTurno"></dd>
+      </dl>
+      <div class="bloco" id="bLeitos" style="display:none">
+        <h3>Leitos</h3><div id="cLeitos" style="font-size:12.5px;color:var(--ink2)"></div>
+      </div>
+      <div class="bloco" id="bServs" style="display:none">
+        <h3 id="hServs">Serviços especializados</h3><div class="servs" id="cServs"></div>
+      </div>
+      <div class="cnes">CNES <span id="cCnes"></span></div>
+      <button class="reportar" id="bReport" type="button">📍 Reportar localização</button>
+      <form id="fReport" style="display:none" aria-label="Reportar problema de localização">
+        <label for="rTipo">O que está errado?</label>
+        <select id="rTipo">
+          <option value="endereco_errado">O endereço informado está errado</option>
+          <option value="nao_existe">O estabelecimento não existe mais aqui</option>
+          <option value="duplicado">Está duplicado no mapa</option>
+          <option value="outro">Outro problema</option>
+        </select>
+
+        <!-- só aparece para "endereco_errado": as duas formas de indicar o
+             endereço certo SÃO excludentes (um ou outro) — descrever em
+             campos, ou marcar o ponto no mapa. -->
+        <div id="rBlocoLocal" style="display:none">
+          <label>Como quer indicar o endereço certo?</label>
+          <div class="escolhaLocal">
+            <label><input type="radio" name="rModoLocal" value="texto" checked> Descrever endereço</label>
+            <label><input type="radio" name="rModoLocal" value="mapa"> Marcar no mapa</label>
+          </div>
+
+          <div id="rBlocoTexto">
+            <label for="rRua">Rua</label>
+            <input type="text" id="rRua" maxlength="120" placeholder="Nome da rua">
+            <label for="rNumero">Número</label>
+            <input type="text" id="rNumero" maxlength="20" placeholder="Número (ou S/N)">
+            <label for="rBairroCorrigido">Bairro</label>
+            <input type="text" id="rBairroCorrigido" maxlength="80" placeholder="Bairro">
+          </div>
+
+          <div id="rBlocoMapa" style="display:none">
+            <button type="button" id="bMarcarMapa">📍 Marcar o local certo no mapa</button>
+            <div id="rMarcado" style="display:none">
+              <span id="rMarcadoTxt"></span>
+              <button type="button" id="bRemoverMarca">remover</button>
+            </div>
+          </div>
+        </div>
+
+        <label for="rTexto">Detalhe do erro identificado (opcional)</label>
+        <textarea id="rTexto" rows="3" maxlength="500"
+          placeholder="Algum outro detalhe que ajude a conferir..."></textarea>
+
+        <label for="rArquivo">Anexar foto ou print como evidência (opcional, até 5 MB)</label>
+        <input type="file" id="rArquivo" accept="image/*">
+        <div id="rArquivoErro"></div>
+
+        <div class="reportarBotoes">
+          <button type="button" id="bReportCancela">Cancelar</button>
+          <button type="submit" id="bReportEnvia">Enviar</button>
+        </div>
+        <div id="rMsg" role="status" style="display:none"></div>
+      </form>
+    </div>
+  </div>
+  <div class="avisoMarcar" id="avisoMarcar" style="display:none" role="status">
+    <span>Toque no mapa onde o estabelecimento fica de verdade.</span>
+    <button type="button" id="bCancelaMarcar">Cancelar</button>
+  </div>
+</main>
+
+<script type="application/json" id="dados">/*__DADOS__*/</script>
+<script>
+(function(){
+const D = JSON.parse(document.getElementById('dados').textContent);
+const g = id => document.getElementById(id);
+const fmt = n => n.toLocaleString('pt-BR');
+
+// ---- descompacta -----------------------------------------------------------
+function delta(str){
+  const p = str.split(','), out = new Float64Array(p.length);
+  let a = 0;
+  for(let i=0;i<p.length;i++){ a += parseInt(p[i],36); out[i] = a/1e5; }
+  return out;
+}
+const lat = delta(D.lat), lon = delta(D.lon), N = lat.length;
+const bairro = D.bairro.split(',').map(Number);   // índice em D.bairros
+// Os textos da ficha podem vir embutidos (arquivo único, uso offline) ou num
+// arquivo à parte buscado em segundo plano (uso em servidor). O mapa desenha e
+// fica navegável sem eles; só a ficha do estabelecimento espera.
+let nome=null, end=null, cep=null, tel=null, cnes=null;
+let fichasProntas = false, aoChegarFichas = null;
+// Declarado aqui, e não junto do resto da localização do observador lá embaixo:
+// no arquivo único autocontido, D.nome já vem embutido e aplicaFichas() roda na
+// hora, síncrono — e ela testa `obs`. Se a declaração ficasse só lá embaixo,
+// esse teste caía na zona morta temporal do `let` e todo arquivo único quebrava
+// com "Cannot access 'obs' before initialization", sempre, sem exceção.
+let obs = null;                       // {lat, lon, precisao}
+function aplicaFichas(F){
+  nome = F.nome.split('|'); end = F.end.split('|');
+  cep = F.cep.split('|');   tel = F.tel.split('|'); cnes = F.cnes.split('|');
+  fichasProntas = true;
+  if(obs) listaProximos();
+  if(aoChegarFichas){ const f = aoChegarFichas; aoChegarFichas = null; f(); }
+}
+if(D.nome) aplicaFichas(D);
+else fetch('fichas.json').then(r => r.json()).then(aplicaFichas)
+       .catch(() => { console.warn('fichas.json indisponível'); });
+const tipo = D.tipo.split(',').map(Number), mun = D.mun.split(',').map(Number);
+const turno = D.turno.split(',').map(Number), esfera = D.esfera;
+const servIdx = D.serv.split('|').map(s => s ? s.split(',').map(Number) : []);
+const leitos = D.leitos;
+
+// ---- projeção Web Mercator -------------------------------------------------
+const merc = la => { const r = la*Math.PI/180;
+  return (1 - Math.log(Math.tan(r)+1/Math.cos(r))/Math.PI)/2; };
+const px = new Float64Array(N), py = new Float64Array(N);
+for(let i=0;i<N;i++){ px[i] = (lon[i]+180)/360; py[i] = merc(lat[i]); }
+function projetaAneis(fs){
+  const out = [];
+  for(const f of fs) for(const anel of f.a){
+    const a = anel.map(p => [(p[0]+180)/360, merc(p[1])]);
+    let x0=1,x1=0,y0=1,y1=0;
+    for(const [x,y] of a){ if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y; }
+    out.push({a, x0, x1, y0, y1});
+  }
+  return out;
+}
+const aneisFinos   = projetaAneis(D.malha || []);
+const aneisGrossos = projetaAneis(D.malhaGrossa || []);
+// A malha fina entra já na visão de ~200 km (z 15.000). Medido: escala 200 km
+// corresponde a z 18.000; 100 km a 38.700; 50 km a 83.600.
+const ZOOM_MALHA_FINA = 15000;
+
+// ---- agrupa coordenadas idênticas ------------------------------------------
+const grupoDe = new Int32Array(N).fill(-1), grupos = [];
+{
+  const mapa = new Map();
+  for(let i=0;i<N;i++){
+    const k = lat[i]+','+lon[i];
+    let gi = mapa.get(k);
+    if(gi === undefined){ gi = grupos.length; grupos.push([]); mapa.set(k, gi); }
+    grupos[gi].push(i); grupoDe[i] = gi;
+  }
+}
+
+// ---- estado ----------------------------------------------------------------
+const cv = g('cv'), ctx = cv.getContext('2d', {alpha:false});
+let W=0, H=0, dpr=1, z=1, ox=0, oy=0;
+const vis = new Uint8Array(N).fill(1);
+let nVis = N, sel = -1, grupoAtual = null, reportIdx = -1;
+let resumoUF = [];
+// grade de aglutinação reaproveitada entre quadros, para não alocar por desenho
+let gradeCols = 0, gradeRows = 0, gN, gX, gY, gP;
+// Lado da célula de aglutinação. Grande nas escalas intermediárias — poucas
+// bolhas, mapa visível — e diminuindo à medida que se aproxima, até os pinos.
+function celulaAtual(){
+  return z < 3e5 ? 130 : z < 6e5 ? 100 : z < 1e6 ? 76 : 56;
+}
+const ZOOM_PINOS = 1.2e6;               // acima disto, cada estabelecimento é um pino
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+
+// ---- camada de contexto (OpenStreetMap) ------------------------------------
+const MAXZ = 19;
+function temaEscuro(){
+  return document.documentElement.getAttribute('data-theme') === 'dark';
+}
+const cacheTiles = new Map();
+// Um único laço de quadro para tudo — animação de zoom e chegada de tiles.
+// Antes eram dois agendadores independentes chamando desenha() por conta
+// própria: trabalho duplicado e cadência irregular, que o olho lê como travada.
+let precisaDesenhar = false, loopAtivo = false;
+function agendaRedraw(){ precisaDesenhar = true; ligaLoop(); }
+function ligaLoop(){
+  if(loopAtivo) return;
+  loopAtivo = true;
+  proximoQuadro(function quadro(){
+    const eraAnimacao = animando;
+    if(animando) avancaZoom();          // pode encerrar a animação neste passo
+    if(precisaDesenhar || eraAnimacao){ precisaDesenhar = false; desenha(); }
+    if(animando || precisaDesenhar) proximoQuadro(quadro);
+    else loopAtivo = false;
+  });
+}
+// Teto do cache. Cada tile de 256x256 decodificado ocupa algumas centenas de KB,
+// e navegar em escala de rua acumulava indefinidamente — nada removia entrada.
+// O Map preserva a ordem de inserção, então reinserir no acesso põe o item no
+// fim e o descarte pela primeira chave vira o menos usado recentemente.
+const MAX_TILES = 600;
+function pegaTile(tz, tx, ty){
+  const k = tz+'/'+tx+'/'+ty;
+  let im = cacheTiles.get(k);
+  if(im !== undefined){
+    cacheTiles.delete(k); cacheTiles.set(k, im);   // renova a posição
+    return im;
+  }
+  if(cacheTiles.size >= MAX_TILES){
+    const velho = cacheTiles.keys().next().value;
+    const alvo = cacheTiles.get(velho);
+    if(alvo) alvo.src = '';        // interrompe carga pendente antes de soltar
+    cacheTiles.delete(velho);
+  }
+  im = new Image();
+  im.crossOrigin = 'anonymous';   // o servidor libera CORS; sem isso o canvas fica
+  im.onload = agendaRedraw;       // contaminado e não se pode mais ler pixel dele
+  im.onerror = () => cacheTiles.set(k, null);
+  im.src = 'https://tile.openstreetmap.org/' + tz + '/' + tx + '/' + ty + '.png';
+  cacheTiles.set(k, im);
+  return im;
+}
+// Dois estágios, mesma fonte. A carta do OpenStreetMap entra em cheio ao ampliar
+// e, na visão nacional, esmaecida sobre a terra branca: dá relevo, hidrografia e
+// vegetação sob os rótulos sem competir com eles nem com as bolhas.
+//   1. visão nacional — carta esmaecida, divisas e nomes dos estados
+//   2. ao ampliar     — carta em cheio
+const ZOOM_CONTEXTO = 15000;
+function desenhaTiles(){
+  // nível natural da escala: o tile é desenhado perto dos 256 px em que foi
+  // composto, e os topônimos saem no corpo de origem. Pedir um nível acima
+  // rendia mais detalhe, mas encolhia os nomes a ~40% e quadruplicava o tráfego
+  const tz = Math.max(0, Math.min(MAXZ, Math.round(Math.log2(z/256))));
+  const n = Math.pow(2, tz), lado = z/n;
+  const x0 = Math.max(0, Math.floor((-ox)/lado)), x1 = Math.min(n-1, Math.floor((W-ox)/lado));
+  const y0 = Math.max(0, Math.floor((-oy)/lado)), y1 = Math.min(n-1, Math.floor((H-oy)/lado));
+  if((x1-x0+1)*(y1-y0+1) > 400) return;
+  for(let tx=x0; tx<=x1; tx++) for(let ty=y0; ty<=y1; ty++){
+    const im = pegaTile(tz,tx,ty);
+    if(im && im.complete && im.naturalWidth)
+      ctx.drawImage(im, tx*lado+ox, ty*lado+oy, lado+0.5, lado+0.5);
+  }
+}
+
+// ---- desenho ---------------------------------------------------------------
+// Caminho único com todos os anéis das 27 UFs. Preenchido, forma a massa
+// continental; a silhueta externa emerge da união sem precisar calculá-la.
+function caminhoBrasil(){
+  // durante a animação usa a malha grossa: montar 43 mil vértices custa ~5 ms
+  // por quadro, e em movimento a diferença de traçado não é percebida
+  const fonte = (!animando && z >= ZOOM_MALHA_FINA && aneisFinos.length) ? aneisFinos : aneisGrossos;
+  const p = new Path2D();
+  for(const r of fonte){
+    // descarta o anel inteiro se a caixa envolvente não toca a tela
+    if(r.x1*z+ox < -40 || r.x0*z+ox > W+40) continue;
+    if(r.y1*z+oy < -40 || r.y0*z+oy > H+40) continue;
+    const a = r.a;
+    for(let i=0;i<a.length;i++){
+      const x = a[i][0]*z+ox, y = a[i][1]*z+oy;
+      i ? p.lineTo(x,y) : p.moveTo(x,y);
+    }
+    p.closePath();
+  }
+  return p;
+}
+// sombra externa: aplicada ao preenchimento da união, acompanha só a silhueta
+// do país — divisas internas não projetam sombra
+function desenhaTerra(pais){
+  ctx.save();
+  ctx.shadowColor = temaEscuro() ? 'rgba(0,0,0,.55)' : 'rgba(72,62,44,.22)';
+  ctx.shadowBlur = 14; ctx.shadowOffsetY = 2;
+  ctx.fillStyle = css('--terra');
+  ctx.fill(pais);
+  ctx.restore();
+}
+function desenhaMalha(pais){
+  ctx.strokeStyle = css('--malha');
+  ctx.lineWidth = 1;
+  ctx.lineJoin = 'round';
+  ctx.stroke(pais);
+}
+// ---- aglutinação -----------------------------------------------------------
+// Desenhar 130 mil marcas por quadro é o custo dominante em movimento, e nas
+// escalas afastadas a mancha resultante não é legível de qualquer forma. As
+// visões distantes mostram totais; a divisão acompanha a aproximação.
+const compacto = n => n.toLocaleString('pt-BR');
+
+function creditoAtual(){
+  const cr = z >= ZOOM_CONTEXTO
+    ? '© OpenStreetMap contributors · IBGE · CNES/DATASUS'
+    : 'IBGE · CNES/DATASUS';
+  if(g('credito').textContent !== cr) g('credito').textContent = cr;
+}
+function bolha(x, y, r, n, pub, rotulo){
+  const frac = n ? pub/n : 0;
+  const esp = Math.max(3, r*0.26);            // espessura do anel
+  ctx.save();
+  ctx.shadowColor = 'rgba(30,26,18,.28)'; ctx.shadowBlur = 6; ctx.shadowOffsetY = 1.5;
+  ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832);
+  ctx.fillStyle = css('--terra-limpa'); ctx.fill();
+  ctx.restore();
+  // anel dividido pela proporção pública / conveniada
+  ctx.lineWidth = esp; ctx.lineCap = 'butt';
+  const rr = r - esp/2;
+  if(frac > 0.001){
+    ctx.beginPath(); ctx.arc(x, y, rr, -Math.PI/2, -Math.PI/2 + frac*6.2832);
+    ctx.strokeStyle = css('--pub'); ctx.stroke();
+  }
+  if(frac < 0.999){
+    ctx.beginPath(); ctx.arc(x, y, rr, -Math.PI/2 + frac*6.2832, -Math.PI/2 + 6.2832);
+    ctx.strokeStyle = css('--conv'); ctx.stroke();
+  }
+  if(rotulo){
+    const livre = (r - esp) * 1.72;           // diâmetro útil do miolo
+    const t = Math.max(8.5, Math.min(13.5, livre/rotulo.length*1.55));
+    ctx.font = '650 ' + t.toFixed(1) + 'px system-ui,-apple-system,sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = css('--ink'); ctx.fillText(rotulo, x, y);
+  }
+}
+// Só as bolhas. Os nomes dos estados vêm da própria carta do OpenStreetMap, que
+// já os compõe e posiciona — desenhar os nossos por cima era duplicar um rótulo
+// que já estava lá, em dois estilos diferentes.
+function desenhaBolhasUF(){
+  let maior = 1;
+  for(const u of resumoUF) if(u.n > maior) maior = u.n;
+  for(let i=0;i<resumoUF.length;i++){
+    const u = resumoUF[i];
+    if(!u.n) continue;
+    const x = (u.sx/u.n)*z + ox, y = (u.sy/u.n)*z + oy;
+    if(x < -80 || x > W+80 || y < -80 || y > H+80) continue;
+    bolha(x, y, 13 + 17*Math.sqrt(u.n/maior), u.n, u.pub, compacto(u.n));
+  }
+}
+// A grade é ancorada no território, não na tela. Se as células fossem fixas na
+// tela, arrastar o mapa passaria a malha por baixo dos pontos e os grupos se
+// refariam a cada pixel de deslocamento — as bolhas mudavam de número sem que
+// nada no dado mudasse. Ancorada no território, o mesmo estabelecimento cai
+// sempre na mesma célula, e o agrupamento só muda quando o zoom muda.
+//
+// O zoom usado para dividir é quantizado à potência de 2 mais próxima: dentro de
+// uma faixa de escala os grupos ficam parados enquanto as posições acompanham a
+// aproximação, e a redivisão acontece em degraus, não continuamente.
+function desenhaGrade(){
+  const CELULA = celulaAtual();
+  const zq = Math.pow(2, Math.round(Math.log2(z)));   // zoom quantizado
+  const lado = CELULA*z/zq;                           // lado da célula, em pixels de tela
+  const cols = Math.ceil(W/lado)+4, rows = Math.ceil(H/lado)+4;
+  if(cols !== gradeCols || rows !== gradeRows){
+    gradeCols = cols; gradeRows = rows;
+    gN = new Int32Array(cols*rows); gX = new Float64Array(cols*rows);
+    gY = new Float64Array(cols*rows); gP = new Int32Array(cols*rows);
+  } else { gN.fill(0); gX.fill(0); gY.fill(0); gP.fill(0); }
+  // índice da célula no território, independente da rolagem; i0/j0 só recolocam
+  // essa numeração absoluta dentro do vetor que cobre a tela
+  const i0 = Math.floor((-lado-ox)/lado), j0 = Math.floor((-lado-oy)/lado);
+  let maior = 1;
+  for(let i=0;i<N;i++){
+    if(!vis[i]) continue;
+    const x = px[i]*z+ox; if(x < -lado || x > W+lado) continue;
+    const y = py[i]*z+oy; if(y < -lado || y > H+lado) continue;
+    const ci = Math.floor(px[i]*zq/CELULA) - i0; if(ci < 0 || ci >= cols) continue;
+    const cj = Math.floor(py[i]*zq/CELULA) - j0; if(cj < 0 || cj >= rows) continue;
+    const k = ci*rows + cj;
+    gN[k]++; gX[k]+=x; gY[k]+=y; if(esfera[i]===0) gP[k]++;
+    if(gN[k] > maior) maior = gN[k];
+  }
+  for(let k=0;k<gN.length;k++){
+    const n = gN[k];
+    if(!n) continue;
+    const x = gX[k]/n, y = gY[k]/n;
+    if(n === 1){
+      ctx.beginPath(); ctx.arc(x, y, 4.4, 0, 6.2832);
+      ctx.fillStyle = css(gP[k] ? '--pub' : '--conv'); ctx.fill();
+      ctx.strokeStyle = css('--terra'); ctx.lineWidth = 1.5; ctx.stroke();
+    } else {
+      bolha(x, y, 11 + 15*Math.sqrt(n/maior), n, gP[k], compacto(n));
+    }
+  }
+}
+// marcador do report de localização — cor própria (nunca usada pelos pinos
+// reais), pra ficar claro que é uma sugestão do usuário, não dado do CNES.
+// Definida antes de desenha() usá-la; 'marcadoLat/marcadoLon' são setados
+// pela lógica de report, mais abaixo no script.
+function desenhaMarcacaoReport(){
+  if(marcadoLat == null) return;
+  const x = ((marcadoLon+180)/360)*z+ox, y = merc(marcadoLat)*z+oy;
+  if(x < -30 || x > W+30 || y < -30 || y > H+30) return;
+  ctx.fillStyle = '#e0208f';
+  ctx.strokeStyle = css('--surface'); ctx.lineWidth = 2;
+  pino(x, y, 9);
+  ctx.beginPath(); ctx.arc(x, y - 9*1.55, 9*0.36, 0, 6.284);
+  ctx.fillStyle = css('--surface'); ctx.fill();
+}
+function pino(x, y, r){
+  const cy = y - r*1.55;
+  ctx.beginPath();
+  ctx.arc(x, cy, r, Math.PI*0.78, Math.PI*0.22);
+  ctx.lineTo(x, y); ctx.closePath();
+  ctx.fill(); ctx.stroke();
+}
+function desenha(){
+  ctx.fillStyle = css('--mar'); ctx.fillRect(0,0,W,H);
+  const pais = caminhoBrasil();
+  // a terra é preenchida sempre: serve de base enquanto os tiles não chegaram e
+  // como desenho final caso não cheguem (sem rede)
+  desenhaTerra(pais);
+  // A carta entra em cheio em toda escala, recortada ao território. Esmaecê-la na
+  // visão nacional deixava o fundo leitoso; e é dela que vêm os nomes dos estados,
+  // já compostos e posicionados pelo OpenStreetMap.
+  ctx.save(); ctx.clip(pais); desenhaTiles(); ctx.restore();
+  desenhaMalha(pais);
+  const modo = z < ZOOM_CONTEXTO ? 'uf' : z < ZOOM_PINOS ? 'grade' : 'pino';
+  const raio = 7.5;
+  ctx.globalAlpha = 1;
+  ctx.lineJoin = 'round';
+  if(modo === 'uf'){ desenhaBolhasUF(); escala(); creditoAtual(); return; }
+  if(modo === 'grade'){ desenhaGrade(); escala(); creditoAtual(); return; }
+  const cPub = css('--pub'), cConv = css('--conv'), cSup = css('--surface');
+  const marg = modo === 'pino' ? raio*3.2 : raio+3;
+
+  {
+    ctx.lineWidth = 2; ctx.strokeStyle = cSup;
+    const naTela = [];
+    for(let i=0;i<N;i++){
+      if(!vis[i]) continue;
+      const x = px[i]*z+ox; if(x < -marg || x > W+marg) continue;
+      const y = py[i]*z+oy; if(y < -marg || y > H+marg) continue;
+      naTela.push(i, x, y);
+    }
+    for(let k=0;k<naTela.length;k+=3){
+      ctx.fillStyle = esfera[naTela[k]]===0 ? cPub : cConv;
+      pino(naTela[k+1], naTela[k+2], raio);
+    }
+    ctx.fillStyle = cSup;
+    for(let k=0;k<naTela.length;k+=3){
+      ctx.beginPath();
+      ctx.arc(naTela[k+1], naTela[k+2] - raio*1.55, raio*0.36, 0, 6.284); ctx.fill();
+    }
+  }
+  ctx.globalAlpha = 1;
+  if(sel >= 0 && vis[sel]){
+    const x = px[sel]*z+ox, y = py[sel]*z+oy, rr = Math.max(9, raio*1.5);
+    ctx.beginPath(); ctx.arc(x, y, rr, 0, 6.284);
+    ctx.strokeStyle = css('--surface'); ctx.lineWidth = 4; ctx.stroke();
+    ctx.strokeStyle = css('--ink'); ctx.lineWidth = 2; ctx.stroke();
+    if(modo === 'pino'){
+      ctx.fillStyle = css(esfera[sel]===0 ? '--pub' : '--conv');
+      ctx.strokeStyle = css('--surface'); ctx.lineWidth = 2;
+      pino(x, y, raio);
+      ctx.fillStyle = css('--surface');
+      ctx.beginPath(); ctx.arc(x, y - raio*1.55, raio*0.36, 0, 6.284); ctx.fill();
+    }
+  }
+  desenhaMarcacaoReport();
+  desenhaObservador();
+  escala();
+  creditoAtual();
+
+}
+// escala gráfica: exigência de leitura cartográfica
+function escala(){
+  const metrosPorPx = 40075016.686 * Math.cos(latCentro()*Math.PI/180) / z;
+  const alvo = 90 * metrosPorPx;
+  const passos = [10,20,50,100,200,500,1e3,2e3,5e3,1e4,2e4,5e4,1e5,2e5,5e5,1e6,2e6];
+  let m = passos[passos.length-1];
+  for(const p of passos) if(p >= alvo){ m = p; break; }
+  g('escBarra').style.width = Math.round(m/metrosPorPx) + 'px';
+  g('escTxt').textContent = m >= 1000 ? (m/1000)+' km' : m+' m';
+}
+function latCentro(){
+  const yy = (H/2 - oy)/z;
+  return (2*Math.atan(Math.exp((0.5-yy)*2*Math.PI)) - Math.PI/2)*180/Math.PI;
+}
+function ajusta(){
+  // O primeiro enquadramento pode ter sido calculado com o canvas ainda sem
+  // layout (script antes do CSS resolver, aba oculta, contêiner recolhido). Com
+  // W e H em zero, verTudo() divide por zero, z cai no piso de 300 e o mapa fica
+  // preso numa mancha no canto — e nada o reenquadrava depois, porque ajusta()
+  // só redesenhava. Ao ganhar dimensão pela primeira vez, refaz o enquadramento.
+  const semLayout = !(W && H);
+  dpr = Math.min(window.devicePixelRatio||1, 2);
+  W = cv.clientWidth; H = cv.clientHeight;
+  cv.width = W*dpr; cv.height = H*dpr;
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  if(semLayout && W && H) verTudo(); else desenha();
+}
+// Enquadra o recorte. A caixa envolvente resolve o caso geral, mas não os
+// degenerados — e eles são a maioria no recorte por bairro: 29.581 dos 47.410
+// bairros têm um único estabelecimento. Antes, qualquer caixa sem largura caía
+// em z=1, que desenha o planeta inteiro num pixel e apaga o mapa.
+const Z_PONTO_UNICO = 4e6;   // mesma escala do clique na lista de próximos
+function verTudo(){
+  animando=false;
+  let x0=1,x1=0,y0=1,y1=0, n=0;
+  for(let i=0;i<N;i++){ if(!vis[i]) continue;
+    n++;
+    if(px[i]<x0)x0=px[i]; if(px[i]>x1)x1=px[i];
+    if(py[i]<y0)y0=py[i]; if(py[i]>y1)y1=py[i]; }
+  if(!n) return desenha();          // recorte vazio: preserva o enquadramento atual
+  const m = 0.08, dx = x1-x0, dy = y1-y0;
+  if(dx <= 0 && dy <= 0){
+    // Sem extensão em nenhum eixo: um estabelecimento, ou vários na mesma
+    // coordenada. Não há caixa para ajustar — adota-se a escala de ~1 km, a
+    // mesma da lista de próximos. Fechar mais afirmaria uma precisão que a
+    // coordenada do CNES não tem (D-15, A-07), e Math.max preserva o zoom de
+    // quem já estava mais perto.
+    z = Math.max(z, Z_PONTO_UNICO);
+  } else {
+    // Um eixo sem extensão não deve restringir o ajuste do outro.
+    z = Math.min(dx > 0 ? W/(dx*(1+m)) : Infinity,
+                 dy > 0 ? H/(dy*(1+m)) : Infinity);
+    z = Math.max(300, Math.min(1e8, z));
+  }
+  ox = W/2 - (x0+x1)/2*z; oy = H/2 - (y0+y1)/2*z;
+  desenha();
+}
+
+// ---- recortes --------------------------------------------------------------
+const fUF=g('fUF'), fMun=g('fMun'), fBairro=g('fBairro'),
+      fTipo=g('fTipo'), fServ=g('fServ'), fEsfera=g('fEsfera');
+D.ufs.map((u,i)=>[u,i]).sort((a,b)=>a[0].localeCompare(b[0]))
+  .forEach(([u,i])=>fUF.add(new Option(u,i)));
+D.tipos.map((t,i)=>[cap(t),i]).sort((a,b)=>a[0].localeCompare(b[0],'pt'))
+  .forEach(([t,i])=>fTipo.add(new Option(t,i)));
+D.servicos.map((s,i)=>[cap(s),i]).sort((a,b)=>a[0].localeCompare(b[0],'pt'))
+  .forEach(([s,i])=>fServ.add(new Option(s,i)));
+
+// recorte territorial encadeado: UF -> município -> bairro.
+// cada nível só oferece o que existe dentro do nível anterior.
+fUF.onchange = () => {
+  const u = fUF.value===''? -1 : +fUF.value;
+  fMun.innerHTML = '';
+  if(u < 0){
+    fMun.add(new Option('Selecione uma UF','')); fMun.disabled = true;
+  } else {
+    fMun.add(new Option('Todos os municípios',''));
+    D.muns.map((m,i)=>[m,i]).filter(([,i])=>D.munUF[i]===u)
+      .sort((a,b)=>a[0].localeCompare(b[0],'pt'))
+      .forEach(([m,i])=>fMun.add(new Option(cap(m),i)));
+    fMun.disabled = false;
+  }
+  fMun.onchange();
+};
+fMun.onchange = () => {
+  const mu = fMun.value===''? -1 : +fMun.value;
+  fBairro.innerHTML = '';
+  if(mu < 0){
+    fBairro.add(new Option('Selecione um município','')); fBairro.disabled = true;
+  } else {
+    const set = new Set();
+    for(let i=0;i<N;i++) if(mun[i]===mu) set.add(bairro[i]);
+    fBairro.add(new Option('Todos os bairros ('+set.size+')',''));
+    [...set].map(b=>[cap(D.bairros[b]),b]).sort((a,b)=>a[0].localeCompare(b[0],'pt'))
+      .forEach(([t,b])=>fBairro.add(new Option(t,b)));
+    fBairro.disabled = false;
+  }
+  filtra(); verTudo();
+};
+
+function filtra(){
+  const u = fUF.value===''? -1 : +fUF.value;
+  const mu = fMun.value===''? -1 : +fMun.value;
+  const ba = fBairro.value===''? -1 : +fBairro.value;
+  const t = fTipo.value===''? -1 : +fTipo.value;
+  const sv = fServ.value===''? -1 : +fServ.value;
+  const e = fEsfera.value===''? -1 : +fEsfera.value;
+  let pub=0, conv=0, leitosSus=0;
+  const munsVistos = new Set(), bairrosVistos = new Set();
+  nVis = 0;
+  for(let i=0;i<N;i++){
+    let ok = 1;
+    if(mu>=0){ if(mun[i]!==mu) ok=0; }
+    else if(u>=0 && D.munUF[mun[i]]!==u) ok=0;
+    if(ok && ba>=0 && bairro[i]!==ba) ok=0;
+    if(ok && t>=0 && tipo[i]!==t) ok=0;
+    if(ok && e>=0 && esfera[i]!==e) ok=0;
+    if(ok && sv>=0 && servIdx[i].indexOf(sv)<0) ok=0;
+    vis[i]=ok;
+    if(ok){
+      nVis++; munsVistos.add(mun[i]); bairrosVistos.add(mun[i]+':'+bairro[i]);
+      esfera[i]===0 ? pub++ : conv++;
+      const L = leitos[i]; if(L) leitosSus += L[1];
+    }
+  }
+  // resumo por UF para a visão agregada — recalculado no filtro, não por quadro
+  resumoUF = D.ufs.map(()=>({n:0, pub:0, sx:0, sy:0}));
+  for(let i=0;i<N;i++){
+    if(!vis[i]) continue;
+    const u = resumoUF[D.munUF[mun[i]]];
+    u.n++; u.sx += px[i]; u.sy += py[i]; if(esfera[i]===0) u.pub++;
+  }
+  g('nVis').textContent = fmt(nVis);
+  g('nPub').textContent = fmt(pub);
+  g('nConv').textContent = fmt(conv);
+  g('nMun').textContent = fmt(munsVistos.size);
+  g('nBairro').textContent = fmt(bairrosVistos.size);
+  g('nLeitos').textContent = fmt(leitosSus);
+  const tot = pub+conv || 1;
+  g('barPub').style.width = (100*pub/tot)+'%';
+  g('barConv').style.width = (100*conv/tot)+'%';
+  if(sel>=0 && !vis[sel]) fecha();
+  if(obs) listaProximos();
+  desenha();
+}
+[fBairro,fTipo,fServ,fEsfera].forEach(el=>el.onchange=()=>{ filtra(); verTudo(); });
+g('bReset').onclick=()=>{
+  fUF.value=fTipo.value=fServ.value=fEsfera.value='';
+  fUF.onchange();
+};
+
+// ---- interação -------------------------------------------------------------
+let arrastando=false, ax=0, ay=0, moveu=false;
+let buf=null, bctx=null, bx=0, by=0;
+cv.addEventListener('pointerdown',e=>{
+  animando=false;                      // o arrasto assume o controle
+  arrastando=true; moveu=false; ax=e.clientX; ay=e.clientY;
+  cv.classList.add('arrastando');
+  try{ cv.setPointerCapture(e.pointerId); }catch(_){}
+  if(!buf){ buf=document.createElement('canvas'); bctx=buf.getContext('2d'); }
+  buf.width=cv.width; buf.height=cv.height;
+  bctx.drawImage(cv,0,0); bx=0; by=0;
+});
+cv.addEventListener('pointermove',e=>{
+  if(!arrastando) return;
+  const dx=e.clientX-ax, dy=e.clientY-ay;
+  if(Math.abs(dx)+Math.abs(dy)>3) moveu=true;
+  ox+=dx; oy+=dy; bx+=dx; by+=dy; ax=e.clientX; ay=e.clientY;
+  ctx.fillStyle=css('--mar'); ctx.fillRect(0,0,W,H);
+  ctx.drawImage(buf, 0,0, buf.width,buf.height, bx,by, W,H);
+});
+cv.addEventListener('pointerup',e=>{
+  arrastando=false; cv.classList.remove('arrastando');
+  desenha();
+  if(!moveu) clique(e);
+});
+// ---- zoom amortecido -------------------------------------------------------
+// A roda define um alvo e o desenho persegue esse alvo em passos exponenciais.
+// A interpolação é feita em log(z) porque zoom é multiplicativo: aproximar de
+// 2× para 4× é o mesmo "tanto" que de 4× para 8×. Interpolar z linearmente é o
+// que produz a sensação dura de salto.
+let zAlvo = 0, zIni = 0, tIni = 0, ancX = 0, ancY = 0, telaX = 0, telaY = 0, animando = false;
+const DUR_ZOOM = 460;   // duração do gesto, em ms
+
+// rAF não dispara em aba oculta nem em alguns contextos embutidos; a reserva
+// garante que a animação avance de qualquer forma
+function proximoQuadro(fn){
+  let feito = false;
+  const q = requestAnimationFrame(()=>{ if(!feito){ feito=true; clearTimeout(t); fn(); } });
+  const t = setTimeout(()=>{ if(!feito){ feito=true; cancelAnimationFrame(q); fn(); } }, 120);
+}
+function fixaAncora(){ ox = telaX - ancX*z; oy = telaY - ancY*z; }
+function alvoZoom(nz, tx, ty){
+  telaX = tx; telaY = ty;
+  ancX = (telaX - ox)/z; ancY = (telaY - oy)/z;   // ponto do mundo sob o cursor
+  zAlvo = Math.max(300, Math.min(1e8, nz));
+  zIni = z; tIni = performance.now();       // reinicia a curva a partir de onde está
+  animando = true; ligaLoop();
+}
+// A curva é função do TEMPO, não do número de quadros: antes, um navegador
+// lento levava segundos e um rápido meio segundo para o mesmo gesto. Agora a
+// duração é a mesma e a taxa de quadros só afeta a suavidade.
+function avancaZoom(){
+  const t = Math.min(1, (performance.now() - tIni) / DUR_ZOOM);
+  const e = 1 - Math.pow(1 - t, 3);             // desaceleração cúbica
+  z = zIni * Math.pow(zAlvo/zIni, e);           // interpolação em escala log
+  if(t >= 1){ z = zAlvo; animando = false; }
+  fixaAncora();
+}
+// o primeiro avanço a partir da visão nacional vai direto à camada de contexto,
+// pulando as escalas intermediárias em que a base limpa não acrescenta nada
+function comSalto(base, nz, ampliando){
+  return (ampliando && base < ZOOM_CONTEXTO) ? Math.max(nz, ZOOM_CONTEXTO*1.15) : nz;
+}
+cv.addEventListener('wheel',e=>{
+  e.preventDefault();
+  const r=cv.getBoundingClientRect();
+  const base = animando ? zAlvo : z;
+  // 0,0052 faz um passo de roda (deltaY 120) valer ~1,9x — praticamente um nível
+  // de zoom, que é o passo esperado num mapa. O expoente mantém a proporção para
+  // trackpads, que emitem muitos eventos de delta pequeno.
+  const nz = base*Math.exp(-e.deltaY*0.0052);
+  alvoZoom(comSalto(base, nz, e.deltaY < 0), e.clientX-r.left, e.clientY-r.top);
+},{passive:false});
+function zoomBotao(f){
+  const base = animando ? zAlvo : z;
+  alvoZoom(comSalto(base, base*f, f > 1), W/2, H/2);
+}
+g('bMais').onclick=()=>zoomBotao(2);
+g('bMenos').onclick=()=>zoomBotao(0.5);
+g('bTudo').onclick=verTudo;
+
+function clique(e){
+  const r=cv.getBoundingClientRect(), mx=e.clientX-r.left, my=e.clientY-r.top;
+  if(marcando){
+    // em modo de marcação, zoom fraco só aproxima (como o clique normal) —
+    // a marcação de fato só é capturada perto o bastante pra fazer sentido
+    if(z < ZOOM_PINOS){ alvoZoom(comSalto(z, z*3.2, true), mx, my); return; }
+    const [la, lo] = telaParaLatLon(mx, my);
+    confirmaMarcacao(la, lo);
+    return;
+  }
+  if(z < ZOOM_PINOS){                 // agregado: clicar aproxima o agrupamento
+    alvoZoom(comSalto(z, z*3.2, true), mx, my);
+    return;
+  }
+  let melhor=-1, dist=18*18;
+  for(let i=0;i<N;i++){
+    if(!vis[i]) continue;
+    const dx=px[i]*z+ox-mx; if(dx>18||dx<-18) continue;
+    const dy=py[i]*z+oy-my; if(dy>18||dy<-18) continue;
+    const d=dx*dx+dy*dy; if(d<dist){ dist=d; melhor=i; }
+  }
+  if(melhor<0) return fecha();
+  const irmaos = grupos[grupoDe[melhor]].filter(i => vis[i]);
+  sel = melhor;
+  if(irmaos.length > 1){ grupoAtual = irmaos; mostraLista(irmaos); }
+  else { grupoAtual = null; mostra(melhor); }
+  desenha();
+}
+
+// ---- ficha -----------------------------------------------------------------
+function cap(s){
+  return String(s).toLowerCase()
+    .replace(/(^|[\s\/(-])([a-zà-ú])/g,(m,a,b)=>a+b.toUpperCase())
+    // o rebaixamento não vale na primeira palavra: sem a âncora, 257 nomes
+    // saíam com inicial minúscula ("e Multi Sao Sepe", "o Laboratorio Vida")
+    .replace(/\b(De|Da|Do|Das|Dos|E|Em|A|O)\b/g,(m,_p,off)=>off?m.toLowerCase():m)
+    .replace(/\b(Sus|Cnes|Uti|Ubs|Samu|Caps|Sadt|Upa|Esf|Usf|Cpn)\b/gi,m=>m.toUpperCase());
+}
+function mostraLista(ids){
+  if(!fichasProntas){ aoChegarFichas = () => mostraLista(ids); }
+  g('vLista').style.display='block'; g('vDetalhe').style.display='none';
+  g('lTitulo').textContent = ids.length + ' estabelecimentos nesta coordenada';
+  const i0 = ids[0];
+  g('lEnd').textContent = (fichasProntas ? cap(end[i0]) + ' — ' : '') + cap(D.muns[mun[i0]]) + '/' + D.ufs[D.munUF[mun[i0]]];
+  const ul = g('lItens'); ul.innerHTML='';
+  ids.forEach(i=>{
+    const li=document.createElement('li'), b=document.createElement('button');
+    b.appendChild(document.createTextNode(fichasProntas ? (cap(nome[i])||'—') : '…'));
+    const sm=document.createElement('small');
+    sm.textContent = cap(D.tipos[tipo[i]]) + ' · ' +
+      (esfera[i]===0?'Administração pública':'Privada conveniada');
+    b.appendChild(sm);
+    b.onclick = () => { sel=i; mostra(i); desenha(); };
+    li.appendChild(b); ul.appendChild(li);
+  });
+  g('card').classList.add('on');
+  g('card').focus();
+}
+function mostra(i){
+  if(!fichasProntas){                     // fichas ainda em trânsito
+    g('vLista').style.display='none'; g('vDetalhe').style.display='block';
+    g('cNome').textContent = 'Carregando dados do estabelecimento…';
+    g('card').classList.add('on');
+    aoChegarFichas = () => mostra(i);
+    return;
+  }
+  g('vLista').style.display='none'; g('vDetalhe').style.display='block';
+  g('bVoltar').style.display = (grupoAtual && grupoAtual.length>1) ? 'block' : 'none';
+  g('cNome').textContent = cap(nome[i]) || '—';
+  g('cTipo').textContent = cap(D.tipos[tipo[i]]) + ' · ' +
+    (esfera[i]===0?'Administração pública':'Privada conveniada');
+  g('cCor').style.background = esfera[i]===0 ? 'var(--pub)' : 'var(--conv)';
+  g('cEnd').textContent = cap(end[i]) || '—';
+  g('cBairro').textContent = cap(D.bairros[bairro[i]]) || '—';
+  g('cMun').textContent = cap(D.muns[mun[i]]) + '/' + D.ufs[D.munUF[mun[i]]];
+  g('cCep').textContent = (cep[i] && cep[i].length===8) ? cep[i].slice(0,5)+'-'+cep[i].slice(5) : (cep[i]||'—');
+  g('cTel').textContent = tel[i] || '—';
+  g('cTurno').textContent = turno[i]>=0 ? cap(D.turnos[turno[i]]) : '—';
+  g('cCnes').textContent = cnes[i];
+  reportIdx = i;
+  g('fReport').style.display = 'none';
+  g('bReport').style.display = 'block';
+  g('rMsg').style.display = 'none';
+  g('rTipo').value = 'endereco_errado';
+  g('rTexto').value = '';
+  g('rRua').value = ''; g('rNumero').value = ''; g('rBairroCorrigido').value = '';
+  g('rArquivo').value = '';
+  g('rArquivoErro').style.display = 'none';
+  document.querySelector('input[name=rModoLocal][value=texto]').checked = true;
+  atualizaBlocoLocal();
+  atualizaModoLocal();
+  removeMarcacao();
+  g('bReportEnvia').disabled = false;
+  g('bReportEnvia').textContent = 'Enviar';
+  const L = leitos[i];
+  g('bLeitos').style.display = L ? 'block' : 'none';
+  if(L) g('cLeitos').textContent = fmt(L[0]) + ' leitos · ' + fmt(L[1]) + ' destinados ao SUS';
+  const S = servIdx[i];
+  g('bServs').style.display = S.length ? 'block' : 'none';
+  if(S.length){
+    g('hServs').textContent = 'Serviços especializados (' + S.length + ')';
+    g('cServs').innerHTML = '';
+    S.map(k=>cap(D.servicos[k])).sort((a,b)=>a.localeCompare(b,'pt')).forEach(t=>{
+      const d=document.createElement('span'); d.className='serv'; d.textContent=t;
+      g('cServs').appendChild(d);
+    });
+  }
+  g('card').classList.add('on');
+  g('card').focus();
+}
+g('bVoltar').onclick=()=>{ if(grupoAtual) mostraLista(grupoAtual); };
+function fecha(){ sel=-1; grupoAtual=null; g('card').classList.remove('on'); desenha(); }
+g('bFechar').onclick=fecha;
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') fecha(); });
+
+// ---- reportar localização ---------------------------------------------------
+// Não há back-end no arquivo autocontido (uso offline); a rota só existe
+// quando o mapa é servido pelo Cloudflare Pages, que expõe /api/report como
+// Pages Function gravando num banco D1 (texto) e um bucket R2 (evidência em
+// imagem). Ver functions/api/report.js.
+const TAM_MAX_EVIDENCIA = 5 * 1024 * 1024; // 5 MB, mesmo limite do servidor
+let marcando = false, marcadoLat = null, marcadoLon = null;
+
+function atualizaBlocoLocal(){
+  g('rBlocoLocal').style.display = g('rTipo').value === 'endereco_errado' ? 'block' : 'none';
+}
+g('rTipo').addEventListener('change', atualizaBlocoLocal);
+
+// "um ou outro": descrever por campos e marcar no mapa são excludentes —
+// trocar de modo limpa o outro, pra nunca mandar os dois ao mesmo tempo.
+function atualizaModoLocal(){
+  const modo = document.querySelector('input[name=rModoLocal]:checked').value;
+  g('rBlocoTexto').style.display = modo === 'texto' ? 'block' : 'none';
+  g('rBlocoMapa').style.display = modo === 'mapa' ? 'block' : 'none';
+}
+document.querySelectorAll('input[name=rModoLocal]').forEach(r => r.addEventListener('change', ()=>{
+  if(r.checked && r.value==='texto'){ removeMarcacao(); }
+  if(r.checked && r.value==='mapa'){ g('rRua').value=''; g('rNumero').value=''; g('rBairroCorrigido').value=''; }
+  atualizaModoLocal();
+}));
+
+function removeMarcacao(){
+  marcadoLat = null; marcadoLon = null;
+  g('rMarcado').style.display = 'none';
+  desenha();
+}
+g('bRemoverMarca').onclick = removeMarcacao;
+
+// tela -> geográfica: inverso exato da projeção usada para desenhar os
+// pontos (px[i]*z+ox, py[i]*z+oy) — ver a projeção Web Mercator lá em cima.
+function telaParaLatLon(mx, my){
+  const wx = (mx-ox)/z, wy = (my-oy)/z;
+  const lon = wx*360 - 180;
+  const lat = (2*Math.atan(Math.exp((0.5-wy)*2*Math.PI)) - Math.PI/2)*180/Math.PI;
+  return [lat, lon];
+}
+function confirmaMarcacao(la, lo){
+  marcadoLat = la; marcadoLon = lo;
+  marcando = false;
+  g('avisoMarcar').style.display = 'none';
+  g('card').classList.add('on');
+  g('rMarcadoTxt').textContent = 'Local marcado: ' + la.toFixed(5) + ', ' + lo.toFixed(5);
+  g('rMarcado').style.display = 'flex';
+  desenha();
+}
+g('bMarcarMapa').onclick = ()=>{
+  marcando = true;
+  g('card').classList.remove('on');
+  g('avisoMarcar').style.display = 'flex';
+};
+g('bCancelaMarcar').onclick = ()=>{
+  marcando = false;
+  g('avisoMarcar').style.display = 'none';
+  g('card').classList.add('on');
+};
+
+g('rArquivo').addEventListener('change', ()=>{
+  const f = g('rArquivo').files[0], erro = g('rArquivoErro');
+  erro.style.display = 'none';
+  if(!f) return;
+  if(!f.type.startsWith('image/')){
+    erro.textContent = 'Só é possível anexar imagem (foto ou print).';
+    erro.style.display='block'; g('rArquivo').value=''; return;
+  }
+  if(f.size > TAM_MAX_EVIDENCIA){
+    erro.textContent = 'Arquivo maior que 5 MB — escolha uma imagem menor.';
+    erro.style.display='block'; g('rArquivo').value=''; return;
+  }
+});
+
+g('bReport').onclick=()=>{
+  g('bReport').style.display='none';
+  g('fReport').style.display='block';
+  g('rTipo').focus();
+};
+g('bReportCancela').onclick=()=>{
+  g('fReport').style.display='none';
+  g('bReport').style.display='block';
+};
+g('fReport').addEventListener('submit', async (ev)=>{
+  ev.preventDefault();
+  if(reportIdx<0) return;
+  const botao = g('bReportEnvia'), msg = g('rMsg');
+  botao.disabled = true; botao.textContent = 'Enviando…';
+  msg.style.display='none'; msg.className='';
+  try{
+    const dados = new FormData();
+    dados.set('cnes', cnes[reportIdx]);
+    dados.set('nome', nome[reportIdx] || '');
+    dados.set('tipo', g('rTipo').value);
+    dados.set('texto', g('rTexto').value.slice(0,500));
+    dados.set('lat', String(lat[reportIdx]));
+    dados.set('lon', String(lon[reportIdx]));
+    if(g('rTipo').value === 'endereco_errado'){
+      const modo = document.querySelector('input[name=rModoLocal]:checked').value;
+      if(modo === 'texto'){
+        if(g('rRua').value.trim()) dados.set('rua_correta', g('rRua').value.trim().slice(0,120));
+        if(g('rNumero').value.trim()) dados.set('numero_correto', g('rNumero').value.trim().slice(0,20));
+        if(g('rBairroCorrigido').value.trim()) dados.set('bairro_correto', g('rBairroCorrigido').value.trim().slice(0,80));
+      } else if(marcadoLat!=null){
+        dados.set('lat_sugerida', String(marcadoLat)); dados.set('lon_sugerida', String(marcadoLon));
+      }
+    }
+    const arq = g('rArquivo').files[0];
+    if(arq) dados.set('evidencia', arq, arq.name);
+
+    const resp = await fetch('/api/report', { method: 'POST', body: dados });
+    if(!resp.ok) throw new Error('HTTP '+resp.status);
+    msg.textContent = 'Obrigado! Seu report foi enviado.';
+    msg.className = 'ok'; msg.style.display='block';
+    botao.textContent = 'Enviado';
+  }catch(err){
+    msg.textContent = 'Não foi possível enviar agora. Tente novamente mais tarde.';
+    msg.className = 'erro'; msg.style.display='block';
+    botao.disabled = false; botao.textContent = 'Enviar';
+  }
+});
+
+g('bTema').onclick=()=>{
+  document.documentElement.setAttribute('data-theme', temaEscuro() ? 'light' : 'dark');
+  desenha();
+};
+
+// ---- localização do observador ---------------------------------------------
+// Exige contexto seguro (HTTPS ou localhost); em file:// o navegador recusa.
+// `obs` é declarado lá em cima, perto de `nome`/`end`/etc — ver o comentário lá.
+const R_TERRA = 6371000;
+function haversine(la1, lo1, la2, lo2){
+  const r = Math.PI/180;
+  const dla = (la2-la1)*r, dlo = (lo2-lo1)*r;
+  const a = Math.sin(dla/2)**2 + Math.cos(la1*r)*Math.cos(la2*r)*Math.sin(dlo/2)**2;
+  return 2*R_TERRA*Math.asin(Math.sqrt(a));
+}
+const distTxt = m => m < 1000 ? Math.round(m/10)*10 + ' m'
+                             : (m/1000).toFixed(m < 10000 ? 1 : 0) + ' km';
+
+g('bGeo').onclick = () => {
+  const info = g('geoInfo');
+  info.hidden = false;
+  if(!window.isSecureContext){
+    info.innerHTML = 'A geolocalização exige HTTPS ou <b>localhost</b>. ' +
+      'Abrindo o arquivo direto do disco, o navegador bloqueia.';
+    return;
+  }
+  info.textContent = 'Obtendo posição…';
+  g('bGeo').disabled = true;
+  navigator.geolocation.getCurrentPosition(pos => {
+    g('bGeo').disabled = false;
+    g('bGeo').textContent = 'Atualizar minha localização';
+    obs = {lat: pos.coords.latitude, lon: pos.coords.longitude,
+           precisao: pos.coords.accuracy};
+    info.innerHTML =
+      'Posição obtida com precisão de <b>±' + Math.round(obs.precisao) + ' m</b>.' +
+      '<span class="aviso">As distâncias abaixo são calculadas sobre a coordenada ' +
+      'declarada no CNES. 37,8% dos endereços não têm número, e o ponto publicado ' +
+      'pode estar a centenas de metros do local real.</span>';
+    // enquadra o observador
+    z = Math.max(z, 3e6);
+    ox = W/2 - (obs.lon+180)/360*z;
+    oy = H/2 - merc(obs.lat)*z;
+    listaProximos();
+    desenha();
+  }, err => {
+    g('bGeo').disabled = false;
+    info.textContent = err.code === err.PERMISSION_DENIED
+      ? 'Permissão negada. O recorte por UF e município continua disponível.'
+      : 'Não foi possível obter a posição (' + err.message + ').';
+  }, {enableHighAccuracy:true, timeout:12000, maximumAge:60000});
+};
+
+function listaProximos(n = 10){
+  if(!obs) return;
+  const cand = [];
+  for(let i=0;i<N;i++){
+    if(!vis[i]) continue;
+    // filtro grosseiro por caixa antes do cálculo esférico
+    if(Math.abs(lat[i]-obs.lat) > 1.5 || Math.abs(lon[i]-obs.lon) > 1.5) continue;
+    cand.push([haversine(obs.lat, obs.lon, lat[i], lon[i]), i]);
+  }
+  cand.sort((a,b)=>a[0]-b[0]);
+  const ol = g('geoLista');
+  ol.innerHTML = '';
+  ol.hidden = cand.length === 0;
+  if(!cand.length){
+    g('geoInfo').innerHTML += '<span class="aviso">Nenhum estabelecimento do ' +
+      'recorte atual num raio de ~150 km.</span>';
+    return;
+  }
+  cand.slice(0, n).forEach(([d, i]) => {
+    const li = document.createElement('li'), b = document.createElement('button');
+    const sd = document.createElement('span'); sd.className = 'dist'; sd.textContent = distTxt(d);
+    const sn = document.createElement('span'); sn.className = 'nm';
+    sn.appendChild(document.createTextNode(fichasProntas ? (cap(nome[i])||'—') : '…'));
+    const sm = document.createElement('small');
+    sm.textContent = cap(D.tipos[tipo[i]]);
+    sn.appendChild(sm);
+    b.appendChild(sd); b.appendChild(sn);
+    b.onclick = () => {
+      sel = i; grupoAtual = null; mostra(i);
+      z = Math.max(z, 4e6);
+      ox = W/2 - px[i]*z; oy = H/2 - py[i]*z;
+      desenha();
+    };
+    li.appendChild(b); ol.appendChild(li);
+  });
+}
+function desenhaObservador(){
+  if(!obs) return;
+  const x = (obs.lon+180)/360*z + ox, y = merc(obs.lat)*z + oy;
+  if(x < -60 || x > W+60 || y < -60 || y > H+60) return;
+  // círculo de incerteza da própria medição do GPS
+  const rp = obs.precisao / (40075016.686*Math.cos(obs.lat*Math.PI/180)/z);
+  if(rp > 4){
+    ctx.beginPath(); ctx.arc(x, y, Math.min(rp, 400), 0, 6.284);
+    ctx.fillStyle = 'rgba(42,120,214,.13)'; ctx.fill();
+  }
+  ctx.beginPath(); ctx.arc(x, y, 7, 0, 6.284);
+  ctx.fillStyle = css('--ink'); ctx.fill();
+  ctx.strokeStyle = css('--surface'); ctx.lineWidth = 3; ctx.stroke();
+}
+
+// ---- início ----------------------------------------------------------------
+new ResizeObserver(ajusta).observe(cv);
+ajusta(); filtra(); verTudo();
+})();
+</script>
