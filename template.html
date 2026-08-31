@@ -419,7 +419,7 @@ dd{margin:0;color:var(--ink2)}
         <textarea id="rTexto" rows="3" maxlength="500"
           placeholder="Algum outro detalhe que ajude a conferir..."></textarea>
 
-        <label for="rArquivo">Anexar foto ou print como evidência (opcional, até 5 MB)</label>
+        <label for="rArquivo">Anexar foto ou print como evidência (opcional, até 1 MB)</label>
         <input type="file" id="rArquivo" accept="image/*">
         <div id="rArquivoErro"></div>
 
@@ -1166,7 +1166,7 @@ document.addEventListener('keydown',e=>{ if(e.key==='Escape') fecha(); });
 // quando o mapa é servido pelo Cloudflare Pages, que expõe /api/report como
 // Pages Function gravando num banco D1 (texto) e um bucket R2 (evidência em
 // imagem). Ver functions/api/report.js.
-const TAM_MAX_EVIDENCIA = 5 * 1024 * 1024; // 5 MB, mesmo limite do servidor
+const TAM_MAX_EVIDENCIA = 1024 * 1024; // 1 MB, mesmo limite do servidor
 let marcando = false, marcadoLat = null, marcadoLon = null;
 
 function atualizaBlocoLocal(){
@@ -1231,7 +1231,7 @@ g('rArquivo').addEventListener('change', ()=>{
     erro.style.display='block'; g('rArquivo').value=''; return;
   }
   if(f.size > TAM_MAX_EVIDENCIA){
-    erro.textContent = 'Arquivo maior que 5 MB — escolha uma imagem menor.';
+    erro.textContent = 'Arquivo maior que 1 MB — escolha uma imagem menor.';
     erro.style.display='block'; g('rArquivo').value=''; return;
   }
 });
@@ -1274,7 +1274,12 @@ g('fReport').addEventListener('submit', async (ev)=>{
 
     const resp = await fetch('/api/report', { method: 'POST', body: dados });
     if(!resp.ok) throw new Error('HTTP '+resp.status);
-    msg.textContent = 'Obrigado! Seu report foi enviado.';
+    // o anexo pode ser recusado por limite sem que o report seja perdido —
+    // nesse caso o aviso precisa dizer exatamente o que ficou de fora
+    const r = await resp.json().catch(()=>({}));
+    msg.textContent = (r.anexo === 'recusado_limite')
+      ? 'Obrigado! Seu report foi enviado, mas a foto não pôde ser anexada agora — o limite diário de anexos foi atingido.'
+      : 'Obrigado! Seu report foi enviado.';
     msg.className = 'ok'; msg.style.display='block';
     botao.textContent = 'Enviado';
   }catch(err){

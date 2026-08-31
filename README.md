@@ -44,7 +44,7 @@ Cada ficha do mapa traz um botão **Reportar localização**. Quem conhece o loc
 pode indicar que o endereço está errado, que o estabelecimento não existe mais
 ali ou que está duplicado — e, no caso de endereço errado, informar o endereço
 certo por escrito **ou** marcar o ponto correto tocando no mapa. É possível
-anexar uma foto ou print como evidência, até 5 MB.
+anexar uma foto ou print como evidência, até 1 MB.
 
 Os envios ficam **registrados para conferência**, sem aplicação automática sobre
 os dados do CNES: nenhuma correção entra no mapa sozinha.

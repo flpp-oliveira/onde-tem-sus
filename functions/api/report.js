@@ -16,9 +16,16 @@
 const TIPOS_VALIDOS = new Set(["endereco_errado", "nao_existe", "duplicado", "outro"]);
 const LIMITE_TEXTO = 500;
 const LIMITE_RUA = 120, LIMITE_NUMERO = 20, LIMITE_BAIRRO = 80;
-const LIMITE_EVIDENCIA = 5 * 1024 * 1024; // 5 MB — mesmo limite validado no cliente
+const LIMITE_EVIDENCIA = 1024 * 1024; // 1 MB — mesmo limite validado no cliente
 const JANELA_LIMITE_MINUTOS = 10;
 const MAX_REPORTS_NA_JANELA = 5; // por IP, contra abuso básico
+
+// Limites específicos de anexo. O teto de reports acima contém spam de texto,
+// que é barato; anexo é caro em armazenamento, então tem contenção própria.
+// Com 1 MB por imagem, o pior caso de abuso fica em 500 MB por dia — dentro da
+// camada gratuita de 10 GB do R2 mesmo se durar o mês inteiro.
+const MAX_ANEXOS_POR_IP_DIA = 10;
+const MAX_ANEXOS_GLOBAL_DIA = 500;
 
 function json(dados, status = 200) {
   return new Response(JSON.stringify(dados), {
@@ -104,20 +111,40 @@ export async function onRequestPost(context) {
   }
 
   // ---- evidência (opcional) --------------------------------------------------
+  // Estourar o limite de anexo NÃO descarta o report: o texto e a correção de
+  // endereço são o que interessa, e perder tudo por causa da foto seria punir
+  // quem quis ajudar. A imagem é recusada e o cliente avisa que só ela ficou de
+  // fora.
   let evidenciaKey = null;
+  let anexo = "nenhum";
   const arquivo = form.get("evidencia");
   if (arquivo && typeof arquivo === "object" && arquivo.size > 0) {
     if (!arquivo.type || !arquivo.type.startsWith("image/")) {
       return json({ erro: "evidência precisa ser uma imagem" }, 400);
     }
     if (arquivo.size > LIMITE_EVIDENCIA) {
-      return json({ erro: "evidência maior que 5 MB" }, 400);
+      return json({ erro: "evidência maior que 1 MB" }, 400);
     }
-    const ext = extensaoDe(arquivo.name || arquivo.type);
-    evidenciaKey = `reports/${cnes}/${Date.now()}-${crypto.randomUUID()}.${ext}`;
-    await env.EVIDENCIAS.put(evidenciaKey, arquivo.stream(), {
-      httpMetadata: { contentType: arquivo.type },
-    });
+    const { results: contas } = await env.DB.prepare(
+      `SELECT
+         COUNT(*) AS global,
+         SUM(CASE WHEN ip_hash = ? THEN 1 ELSE 0 END) AS meus
+       FROM reports
+       WHERE evidencia_key IS NOT NULL
+         AND criado_em >= datetime('now', '-1 day')`
+    ).bind(ipHash).all();
+    const noDia = contas?.[0] || {};
+    if ((noDia.meus ?? 0) >= MAX_ANEXOS_POR_IP_DIA ||
+        (noDia.global ?? 0) >= MAX_ANEXOS_GLOBAL_DIA) {
+      anexo = "recusado_limite";
+    } else {
+      const ext = extensaoDe(arquivo.name || arquivo.type);
+      evidenciaKey = `reports/${cnes}/${Date.now()}-${crypto.randomUUID()}.${ext}`;
+      await env.EVIDENCIAS.put(evidenciaKey, arquivo.stream(), {
+        httpMetadata: { contentType: arquivo.type },
+      });
+      anexo = "gravado";
+    }
   }
 
   await env.DB.prepare(
@@ -130,7 +157,7 @@ export async function onRequestPost(context) {
          ruaCorreta || null, numeroCorreto || null, bairroCorreto || null, latSug, lonSug,
          evidenciaKey, ipHash).run();
 
-  return json({ ok: true });
+  return json({ ok: true, anexo });
 }
 
 // GET só existe para checagem manual/humana de que a rota está viva; não
