@@ -1,0 +1,444 @@
+﻿municipio;grafia_original;grafia_adotada;freq_original;freq_adotada;regra
+Sumaré;JD MARIA ANTONIA;JARDIM MARIA ANTONIA;;;abreviatura
+Sumaré;JD PRIMAVERA;JARDIM PRIMAVERA;;;abreviatura
+Bom Despacho;STA EFIGENIA;SANTA EFIGENIA;;;abreviatura
+Varginha;JD PETROPOLIS;JARDIM PETROPOLIS;;;abreviatura
+Varginha;PQ MARIELA;PARQUE MARIELA;;;abreviatura
+Cuiabá;JD CUIABA;JARDIM CUIABA;;;abreviatura
+Cuiabá;JD FLORIANOPOLIS;JARDIM FLORIANOPOLIS;;;abreviatura
+Cuiabá;JD IMPERIAL;JARDIM IMPERIAL;;;abreviatura
+Cuiabá;JD LEBLON;JARDIM LEBLON;;;abreviatura
+Cuiabá;JD MARIANA;JARDIM MARIANA;;;abreviatura
+Cuiabá;JD SANTA AMALIA;JARDIM SANTA AMALIA;;;abreviatura
+Cuiabá;JD VITORIA;JARDIM VITORIA;;;abreviatura
+São José do Rio Preto;JD SANTO ANTONIO;JARDIM SANTO ANTONIO;;;abreviatura
+São José do Rio Preto;PQ INDUSTRIAL;PARQUE INDUSTRIAL;;;abreviatura
+Tanguá;VL CORTES;VILA CORTES;;;abreviatura
+Belo Horizonte;STA EFIGENIA;SANTA EFIGENIA;;;abreviatura
+São Paulo;CID VARGAS;CIDADE VARGAS;;;abreviatura
+São Paulo;JD APURA;JARDIM APURA;;;abreviatura
+São Paulo;JD BRASILIA;JARDIM BRASILIA;;;abreviatura
+São Paulo;JD DA CONQUISTA;JARDIM DA CONQUISTA;;;abreviatura
+São Paulo;JD DOM BOSCO;JARDIM DOM BOSCO;;;abreviatura
+São Paulo;JD GUAIRACA;JARDIM GUAIRACA;;;abreviatura
+São Paulo;JD HELENA;JARDIM HELENA;;;abreviatura
+São Paulo;JD INGA;JARDIM INGA;;;abreviatura
+São Paulo;JD PAULISTA;JARDIM PAULISTA;;;abreviatura
+São Paulo;JD PERI PERI;JARDIM PERI PERI;;;abreviatura
+São Paulo;JD SAO CARLOS;JARDIM SAO CARLOS;;;abreviatura
+São Paulo;JD SAO PAULO;JARDIM SAO PAULO;;;abreviatura
+São Paulo;JD SAPOPEMBA;JARDIM SAPOPEMBA;;;abreviatura
+São Paulo;JD TIETE;JARDIM TIETE;;;abreviatura
+São Paulo;JD VERA CRUZ;JARDIM VERA CRUZ;;;abreviatura
+São Paulo;PQ NOVO MUNDO;PARQUE NOVO MUNDO;;;abreviatura
+São Paulo;PQ PERUCHE;PARQUE PERUCHE;;;abreviatura
+São Paulo;PQ SAO DOMINGOS;PARQUE SAO DOMINGOS;;;abreviatura
+São Paulo;PQ STO ANTONIO;PARQUE STO ANTONIO;;;abreviatura
+São Paulo;STO AMARO;SANTO AMARO;;;abreviatura
+São Paulo;VL ARICANDUVA;VILA ARICANDUVA;;;abreviatura
+São Paulo;VL LEOPOLDINA;VILA LEOPOLDINA;;;abreviatura
+São Paulo;VL PARANAGUA;VILA PARANAGUA;;;abreviatura
+São Paulo;VL SANTA LUCIA;VILA SANTA LUCIA;;;abreviatura
+Senador Canedo;JD TODOS SANTOS;JARDIM TODOS SANTOS;;;abreviatura
+Goiânia;JD AMERICA;JARDIM AMERICA;;;abreviatura
+Goiânia;JD EUROPA;JARDIM EUROPA;;;abreviatura
+Goiânia;PQ AMAZONIA;PARQUE AMAZONIA;;;abreviatura
+Goiânia;RES ITAIPU;RESIDENCIAL ITAIPU;;;abreviatura
+Goiânia;VL NOVO HORIZONTE;VILA NOVO HORIZONTE;;;abreviatura
+Limeira;PQ HIPOLITO;PARQUE HIPOLITO;;;abreviatura
+Carneirinho;JD PRIMAVERA;JARDIM PRIMAVERA;;;abreviatura
+Jaraguá;JD AEROPORTO;JARDIM AEROPORTO;;;abreviatura
+Franco da Rocha;PQ INDUSTRIAL;PARQUE INDUSTRIAL;;;abreviatura
+Guarulhos;PQ DAS NACOES;PARQUE DAS NACOES;;;abreviatura
+Guarulhos;VL AUGUSTA;VILA AUGUSTA;;;abreviatura
+Ourinhos;JD DAS PAINEIRAS;JARDIM DAS PAINEIRAS;;;abreviatura
+Ourinhos;JD MATILDE;JARDIM MATILDE;;;abreviatura
+Ourinhos;JD PAULISTA;JARDIM PAULISTA;;;abreviatura
+Ourinhos;JD SAO JORGE;JARDIM SAO JORGE;;;abreviatura
+Lages;STA RITA;SANTA RITA;;;abreviatura
+Anicuns;JD ARCO VERDE;JARDIM ARCO VERDE;;;abreviatura
+Aguaí;JD SANTA URSULA;JARDIM SANTA URSULA;;;abreviatura
+Magé;STO ALEIXO;SANTO ALEIXO;;;abreviatura
+Juquitiba;JD DAS PALMEIRAS;JARDIM DAS PALMEIRAS;;;abreviatura
+Dourados;JD INDEPENDENCIA;JARDIM INDEPENDENCIA;;;abreviatura
+Dourados;JD PAULISTA;JARDIM PAULISTA;;;abreviatura
+Dourados;VL PLANALTO;VILA PLANALTO;;;abreviatura
+Rondonópolis;CONJ SAO JOSE I;CONJUNTO SAO JOSE I;;;abreviatura
+Rondonópolis;JD ATLANTICO;JARDIM ATLANTICO;;;abreviatura
+Rondonópolis;JD ESMERALDA;JARDIM ESMERALDA;;;abreviatura
+Rondonópolis;JD GUANABARA;JARDIM GUANABARA;;;abreviatura
+Rondonópolis;JD SANTA MARTA;JARDIM SANTA MARTA;;;abreviatura
+Rio Verde;JD BELA VISTA;JARDIM BELA VISTA;;;abreviatura
+Rio Verde;JD CAMPESTRE;JARDIM CAMPESTRE;;;abreviatura
+Rio Verde;JD GOIAS;JARDIM GOIAS;;;abreviatura
+Rio Verde;PQ BANDEIRANTES;PARQUE BANDEIRANTES;;;abreviatura
+Maceió;CID UNIVERSITARIA;CIDADE UNIVERSITARIA;;;abreviatura
+Araraquara;JD PINHEIROS;JARDIM PINHEIROS;;;abreviatura
+São Vicente;JD GUASSU;JARDIM GUASSU;;;abreviatura
+São Vicente;PQ DAS BANDEIRAS;PARQUE DAS BANDEIRAS;;;abreviatura
+São Vicente;PRQ DAS BANDEIRAS;PARQUE DAS BANDEIRAS;;;abreviatura
+Osasco;JD CIPAVA;JARDIM CIPAVA;;;abreviatura
+Osasco;JD NOVO OSASCO;JARDIM NOVO OSASCO;;;abreviatura
+Osasco;JD PIRATININGA;JARDIM PIRATININGA;;;abreviatura
+Osasco;PRES ALTINO;PRESIDENTE ALTINO;;;abreviatura
+Cotia;PRQ SAO GEORGE;PARQUE SAO GEORGE;;;abreviatura
+Vinhedo;JD SAO MATHEUS;JARDIM SAO MATHEUS;;;abreviatura
+Araruama;PQ MATARUNA;PARQUE MATARUNA;;;abreviatura
+Campo Grande;JD SEMINARIO;JARDIM SEMINARIO;;;abreviatura
+Americana;JD SAO JOSE;JARDIM SAO JOSE;;;abreviatura
+Americana;JD SAO PAULO;JARDIM SAO PAULO;;;abreviatura
+Americana;PQ GRAMADO;PARQUE GRAMADO;;;abreviatura
+Lucas do Rio Verde;JD DAS PALMEIRAS;JARDIM DAS PALMEIRAS;;;abreviatura
+São Caetano do Sul;STA PAULA;SANTA PAULA;;;abreviatura
+Piracicaba;VL INDEPENDENCIA;VILA INDEPENDENCIA;;;abreviatura
+Botucatu;JD AEROPORTO;JARDIM AEROPORTO;;;abreviatura
+Maringá;JD ALVORADA;JARDIM ALVORADA;;;abreviatura
+Maringá;JD TABAETE;JARDIM TABAETE;;;abreviatura
+Maringá;JD UNIVERSITARIO;JARDIM UNIVERSITARIO;;;abreviatura
+Aparecida de Goiânia;JD NOVA ERA;JARDIM NOVA ERA;;;abreviatura
+Imperatriz;PQ ALVORADA;PARQUE ALVORADA;;;abreviatura
+Imperatriz;PQ ANHANGUERA;PARQUE ANHANGUERA;;;abreviatura
+Três Corações;JD ESPERANCA;JARDIM ESPERANCA;;;abreviatura
+Carapicuíba;VL CRETTI;VILA CRETTI;;;abreviatura
+Diadema;JD PAINEIRAS;JARDIM PAINEIRAS;;;abreviatura
+Mogi Guaçu;JD NOVO II;JARDIM NOVO II;;;abreviatura
+Itumbiara;JD PRIMAVERA;JARDIM PRIMAVERA;;;abreviatura
+Indaiatuba;CID NOVA;CIDADE NOVA;;;abreviatura
+Indaiatuba;JD MORADA DO SOL;JARDIM MORADA DO SOL;;;abreviatura
+Indaiatuba;VL VITORIA;VILA VITORIA;;;abreviatura
+Angra dos Reis;PQ DAS PALMEIRAS;PARQUE DAS PALMEIRAS;;;abreviatura
+Ji-Paraná;JD DOS MIGRANTES;JARDIM DOS MIGRANTES;;;abreviatura
+Martinópolis;JD PAULISTA;JARDIM PAULISTA;;;abreviatura
+Muriaé;STA TEREZINHA;SANTA TEREZINHA;;;abreviatura
+Socorro;JD ARAUJO;JARDIM ARAUJO;;;abreviatura
+Nova Iguaçu;JD TROPICAL;JARDIM TROPICAL;;;abreviatura
+Campinas;JD BOA ESPERANCA;JARDIM BOA ESPERANCA;;;abreviatura
+Campinas;JD CAMPO BELO;JARDIM CAMPO BELO;;;abreviatura
+Campinas;JD CONCEICAO;JARDIM CONCEICAO;;;abreviatura
+Campinas;JD GUANABARA;JARDIM GUANABARA;;;abreviatura
+Campinas;JD GUARANI;JARDIM GUARANI;;;abreviatura
+Campinas;JD YEDA;JARDIM YEDA;;;abreviatura
+Campinas;PQ ITALIA;PARQUE ITALIA;;;abreviatura
+Campinas;PQ UNIVERSITARIO;PARQUE UNIVERSITARIO;;;abreviatura
+Campinas;PRQ ALTO TAQUARAL;PARQUE ALTO TAQUARAL;;;abreviatura
+Campinas;VL SAN MARTIN;VILA SAN MARTIN;;;abreviatura
+Cândido Mota;JD AEROPORTO;JARDIM AEROPORTO;;;abreviatura
+Fortaleza;CONJ PALMEIRAS;CONJUNTO PALMEIRAS;;;abreviatura
+Fortaleza;JD DAS OLIVEIRAS;JARDIM DAS OLIVEIRAS;;;abreviatura
+Monções;JD BELA VISTA;JARDIM BELA VISTA;;;abreviatura
+Cambé;JD TAROBA;JARDIM TAROBA;;;abreviatura
+Monte Mor;JD ALVORADA;JARDIM ALVORADA;;;abreviatura
+Monte Mor;JD SANTO ANTONIO;JARDIM SANTO ANTONIO;;;abreviatura
+Trindade;JD SALVADOR;JARDIM SALVADOR;;;abreviatura
+Campos dos Goytacazes;JD CARIOCA;JARDIM CARIOCA;;;abreviatura
+Campos dos Goytacazes;PQ ALDEIA;PARQUE ALDEIA;;;abreviatura
+Campos dos Goytacazes;PQ AURORA;PARQUE AURORA;;;abreviatura
+Campos dos Goytacazes;PQ ROSARIO;PARQUE ROSARIO;;;abreviatura
+Campos dos Goytacazes;PQ SANTA ROSA;PARQUE SANTA ROSA;;;abreviatura
+Campos dos Goytacazes;PQ TAMANDARE;PARQUE TAMANDARE;;;abreviatura
+São José dos Campos;JD ESPLANADA;JARDIM ESPLANADA;;;abreviatura
+São José dos Campos;JD SAO DIMAS;JARDIM SAO DIMAS;;;abreviatura
+Bragança Paulista;JD NOVA BRAGANCA;JARDIM NOVA BRAGANCA;;;abreviatura
+Bragança Paulista;JD SAO JOSE;JARDIM SAO JOSE;;;abreviatura
+Nova Mutum;JD DAS ORQUIDEAS;JARDIM DAS ORQUIDEAS;;;abreviatura
+Volta Redonda;STO AGOSTINHO;SANTO AGOSTINHO;;;abreviatura
+Mossoró;STO ANTONIO;SANTO ANTONIO;;;abreviatura
+Sinop;JD BOTANICO;JARDIM BOTANICO;;;abreviatura
+Sinop;JD JACARANDAS;JARDIM JACARANDAS;;;abreviatura
+Sinop;JD PARAISO;JARDIM PARAISO;;;abreviatura
+Guarujá;JD BOA ESPERANCA;JARDIM BOA ESPERANCA;;;abreviatura
+Guarujá;JD DOS PASSAROS;JARDIM DOS PASSAROS;;;abreviatura
+Guarujá;JD PROGRESSO;JARDIM PROGRESSO;;;abreviatura
+Nova Olímpia;JD OURO VERDE;JARDIM OURO VERDE;;;abreviatura
+Águas Lindas de Goiás;PQ DA BARRAGEM;PARQUE DA BARRAGEM;;;abreviatura
+Toledo;JD COOPAGRO;JARDIM COOPAGRO;;;abreviatura
+Toledo;JD GISELA;JARDIM GISELA;;;abreviatura
+Toledo;JD GISELE;JARDIM GISELE;;;abreviatura
+Toledo;JD LA SALLE;JARDIM LA SALLE;;;abreviatura
+Toledo;JD PANORAMA;JARDIM PANORAMA;;;abreviatura
+Valença;STA ISABEL;SANTA ISABEL;;;abreviatura
+Extrema;JD SAO CRISTOVAO;JARDIM SAO CRISTOVAO;;;abreviatura
+Curitiba;JD DAS AMERICAS;JARDIM DAS AMERICAS;;;abreviatura
+São Gonçalo do Amarante;CONJ AMARANTE;CONJUNTO AMARANTE;;;abreviatura
+Santo André;PQ NOVO ORATORIO;PARQUE NOVO ORATORIO;;;abreviatura
+Santo André;PRQ DAS NACOES;PARQUE DAS NACOES;;;abreviatura
+Cabo Frio;JD ESPERANCA;JARDIM ESPERANCA;;;abreviatura
+Campo Mourão;JD PIO XII;JARDIM PIO XII;;;abreviatura
+Campo Limpo Paulista;JD GUANCIALE;JARDIM GUANCIALE;;;abreviatura
+Guaratinguetá;PRQ SAO FRANCISCO;PARQUE SAO FRANCISCO;;;abreviatura
+Dracena;JD JUSSARA;JARDIM JUSSARA;;;abreviatura
+Monte Alto;JD ALVORADA;JARDIM ALVORADA;;;abreviatura
+Monte Alto;JD PARAISO;JARDIM PARAISO;;;abreviatura
+Itatiba;JD CEL PEROBA;JARDIM CEL PEROBA;;;abreviatura
+Itatiba;JD DE LUCCA;JARDIM DE LUCCA;;;abreviatura
+Itatiba;JD TEREZA;JARDIM TEREZA;;;abreviatura
+Itatiba;VL CASSARO;VILA CASSARO;;;abreviatura
+Piraquara;JD PRIMAVERA;JARDIM PRIMAVERA;;;abreviatura
+Santa Maria da Vitória;JD AMERICA;JARDIM AMERICA;;;abreviatura
+Sarandi;JD INDEPENDENCIA;JARDIM INDEPENDENCIA;;;abreviatura
+Sarandi;JD PANORAMA;JARDIM PANORAMA;;;abreviatura
+Juazeiro;JD NOVO ENCONTRO;JARDIM NOVO ENCONTRO;;;abreviatura
+Jundiaí;VL ARENS;VILA ARENS;;;abreviatura
+Jundiaí;VL HORTOLANDIA;VILA HORTOLANDIA;;;abreviatura
+Duque de Caxias;JD 25 DE AGOSTO;JARDIM 25 DE AGOSTO;;;abreviatura
+Duque de Caxias;JD ANHANGA;JARDIM ANHANGA;;;abreviatura
+Duque de Caxias;PQ EQUITATIVA;PARQUE EQUITATIVA;;;abreviatura
+Santana de Parnaíba;JD FREDIANI;JARDIM FREDIANI;;;abreviatura
+Uberaba;PQ DO MIRANTE;PARQUE DO MIRANTE;;;abreviatura
+Uberaba;VL OLIMPICA;VILA OLIMPICA;;;abreviatura
+Paulínia;JD DOS CALEGARIS;JARDIM DOS CALEGARIS;;;abreviatura
+Votorantim;PQ BELA VISTA;PARQUE BELA VISTA;;;abreviatura
+Santa Rita;JD EUROPA;JARDIM EUROPA;;;abreviatura
+Juiz de Fora;STA EFIGENIA;SANTA EFIGENIA;;;abreviatura
+Rio Claro;JD INDEPENDENCIA;JARDIM INDEPENDENCIA;;;abreviatura
+Guaíra;JD GUAIRA;JARDIM GUAIRA;;;abreviatura
+Santa Bárbara d'Oeste;JD ESMERALDA;JARDIM ESMERALDA;;;abreviatura
+Nova Odessa;JD N S DE FATIMA;JARDIM N S DE FATIMA;;;abreviatura
+Araras;JD CANDIDA;JARDIM CANDIDA;;;abreviatura
+Araras;JD NOVA SUICA;JARDIM NOVA SUICA;;;abreviatura
+Formosa;JD CALIFORNIA;JARDIM CALIFORNIA;;;abreviatura
+Porto Nacional;JD BRASILIA;JARDIM BRASILIA;;;abreviatura
+Guarapuava;VL BELA;VILA BELA;;;abreviatura
+Guarapuava;VL CARLI;VILA CARLI;;;abreviatura
+Paranavaí;JD MORUMBI;JARDIM MORUMBI;;;abreviatura
+Paranavaí;JD SAO JORGE;JARDIM SAO JORGE;;;abreviatura
+Resende;JD JALISCO;JARDIM JALISCO;;;abreviatura
+Suzano;JD PAULISTA;JARDIM PAULISTA;;;abreviatura
+Suzano;PQ MARIA HELENA;PARQUE MARIA HELENA;;;abreviatura
+Suzano;PQ SANTA ROSA;PARQUE SANTA ROSA;;;abreviatura
+Curvelândia;JD PAULISTA;JARDIM PAULISTA;;;abreviatura
+Paraguaçu Paulista;JD AEROPORTO;JARDIM AEROPORTO;;;abreviatura
+Contagem;JD ELDORADO;JARDIM ELDORADO;;;abreviatura
+Belford Roxo;PQ AMORIM;PARQUE AMORIM;;;abreviatura
+Belford Roxo;PQ DOS FERREIRAS;PARQUE DOS FERREIRAS;;;abreviatura
+Porangatu;JD BRASILIA;JARDIM BRASILIA;;;abreviatura
+Boa Esperança;JD ALVORADA;JARDIM ALVORADA;;;abreviatura
+Paiçandu;JD PIONEIRO;JARDIM PIONEIRO;;;abreviatura
+Sorocaba;JD AMERICA;JARDIM AMERICA;;;abreviatura
+Sorocaba;JD ANA MARIA;JARDIM ANA MARIA;;;abreviatura
+Sorocaba;JD FACULDADE;JARDIM FACULDADE;;;abreviatura
+Sorocaba;JD VERGUEIRO;JARDIM VERGUEIRO;;;abreviatura
+Boituva;JD HERMINIA;JARDIM HERMINIA;;;abreviatura
+Boituva;JD OREANA;JARDIM OREANA;;;abreviatura
+Boituva;PQ SANTA RITA;PARQUE SANTA RITA;;;abreviatura
+Tatuí;JD SAO PAULO;JARDIM SAO PAULO;;;abreviatura
+Presidente Prudente;JD BONGIOVANI;JARDIM BONGIOVANI;;;abreviatura
+Presidente Prudente;JD GUANABARA;JARDIM GUANABARA;;;abreviatura
+Presidente Prudente;JD PAULISTA;JARDIM PAULISTA;;;abreviatura
+Caucaia;CONJ N METROPOLE;CONJUNTO N METROPOLE;;;abreviatura
+Peruíbe;PQ DAVILLE;PARQUE DAVILLE;;;abreviatura
+Três Rios;VL ISABEL;VILA ISABEL;;;abreviatura
+Mogi das Cruzes;VL PARTENIO;VILA PARTENIO;;;abreviatura
+Caçapava;VL ANTONIO AUGUSTO;VILA ANTONIO AUGUSTO;;;abreviatura
+Ribeirão Cascalheira;JD TANGARA;JARDIM TANGARA;;;abreviatura
+Bom Jesus do Itabapoana;STA TEREZINHA;SANTA TEREZINHA;;;abreviatura
+Embu das Artes;JD JULIA;JARDIM JULIA;;;abreviatura
+Capão da Canoa;STO ANTONIO;SANTO ANTONIO;;;abreviatura
+Patos;JD GUANABARA;JARDIM GUANABARA;;;abreviatura
+Tangará da Serra;JD MONTE LIBANO;JARDIM MONTE LIBANO;;;abreviatura
+Tangará da Serra;JD SANTA LUCIA;JARDIM SANTA LUCIA;;;abreviatura
+Tangará da Serra;JD TANAKA;JARDIM TANAKA;;;abreviatura
+Italva;PQ INDUSTRIAL;PARQUE INDUSTRIAL;;;abreviatura
+Laranjal do Jari;LOT CAJARI;LOTEAMENTO CAJARI;;;abreviatura
+Olímpia;JD TROPICAL II;JARDIM TROPICAL II;;;abreviatura
+Conchal;PRQ INDUSTRIAL;PARQUE INDUSTRIAL;;;abreviatura
+Alfenas;JD TROPICAL;JARDIM TROPICAL;;;abreviatura
+Itatiaia;JD ITATIAIA;JARDIM ITATIAIA;;;abreviatura
+Valinhos;JD SANTA ROSA;JARDIM SANTA ROSA;;;abreviatura
+Londrina;JD DO SOL;JARDIM DO SOL;;;abreviatura
+Londrina;JD LEONOR;JARDIM LEONOR;;;abreviatura
+Londrina;JD LONDRILAR;JARDIM LONDRILAR;;;abreviatura
+Londrina;VL OPERARIA;VILA OPERARIA;;;abreviatura
+Jacareí;JD PARAIBA;JARDIM PARAIBA;;;abreviatura
+Jardinópolis;DIST DE JURUCE;DISTRITO DE JURUCE;;;abreviatura
+Taquaritinga;JD SAO SEBASTIAO;JARDIM SAO SEBASTIAO;;;abreviatura
+Serrana;JD BELA VISTA;JARDIM BELA VISTA;;;abreviatura
+Leme;JD ALVORADA;JARDIM ALVORADA;;;abreviatura
+Várzea Paulista;JD CRUZ ALTA;JARDIM CRUZ ALTA;;;abreviatura
+Vitória de Santo Antão;LOT CONCEICAO;LOTEAMENTO CONCEICAO;;;abreviatura
+Hortolândia;JD ADELAIDE;JARDIM ADELAIDE;;;abreviatura
+Hortolândia;JD CAMPOS VERDES;JARDIM CAMPOS VERDES;;;abreviatura
+Hortolândia;JD NOVO ANGULO;JARDIM NOVO ANGULO;;;abreviatura
+Hortolândia;PQ ORTOLANDIA;PARQUE ORTOLANDIA;;;abreviatura
+Agudos;JD CRUZEIRO;JARDIM CRUZEIRO;;;abreviatura
+Barra do Piraí;VL SUISSA;VILA SUISSA;;;abreviatura
+Barrinha;JD PAULISTA;JARDIM PAULISTA;;;abreviatura
+Espírito Santo do Pinhal;JD DAS ROSAS;JARDIM DAS ROSAS;;;abreviatura
+Salto;JD CELANI;JARDIM CELANI;;;abreviatura
+Pedregulho;STA LUZIA;SANTA LUZIA;;;abreviatura
+Mirassol;JD MARILU;JARDIM MARILU;;;abreviatura
+Hidrolândia;JD ADELAIDE;JARDIM ADELAIDE;;;abreviatura
+Catanduva;JD ALPINO;JARDIM ALPINO;;;abreviatura
+Catanduva;PRQ IRACEMA;PARQUE IRACEMA;;;abreviatura
+Itupeva;JD SAO VICENTE;JARDIM SAO VICENTE;;;abreviatura
+Santa Rosa de Goiás;RES BATISTA;RESIDENCIAL BATISTA;;;abreviatura
+Itaperuçu;STA MARIA;SANTA MARIA;;;abreviatura
+Rancharia;JD PRIMAVERA;JARDIM PRIMAVERA;;;abreviatura
+Águas de Lindóia;JD PARAISO;JARDIM PARAISO;;;abreviatura
+Bebedouro;JD JULIA;JARDIM JULIA;;;abreviatura
+Brodowski;JD SAO MANOEL;JARDIM SAO MANOEL;;;abreviatura
+Descalvado;VL MUNICIPAL;VILA MUNICIPAL;;;abreviatura
+Jales;JD TRIANON;JARDIM TRIANON;;;abreviatura
+Morro Agudo;PRQ DOM PEDRO;PARQUE DOM PEDRO;;;abreviatura
+Santa Isabel;JD MONTE SERRAT;JARDIM MONTE SERRAT;;;abreviatura
+Caarapó;JD CAPILE;JARDIM CAPILE;;;abreviatura
+Orlândia;JD BOA VISTA;JARDIM BOA VISTA;;;abreviatura
+Carmo do Rio Claro;JD AMERICA;JARDIM AMERICA;;;abreviatura
+Pitangueiras;JD BRASILIA;JARDIM BRASILIA;;;abreviatura
+Arujá;JD MODELO;JARDIM MODELO;;;abreviatura
+Amparo;JD SANTO ANTONIO;JARDIM SANTO ANTONIO;;;abreviatura
+Vargem Grande Paulista;JD MARGARIDA;JARDIM MARGARIDA;;;abreviatura
+Caaporã;CONJ SAO CARLOS;CONJUNTO SAO CARLOS;;;abreviatura
+Coronel Sapucaia;JD TREMEMBE;JARDIM TREMEMBE;;;abreviatura
+Rio Grande da Serra;STA TEREZA;SANTA TEREZA;;;abreviatura
+Pirajuí;VL ORTIZ;VILA ORTIZ;;;abreviatura
+Vera Cruz do Oeste;JD AMERICA;JARDIM AMERICA;;;abreviatura
+Adelândia;JD PROGRESSO;JARDIM PROGRESSO;;;abreviatura
+Natal;CIDADE DA ESPERACA;CIDADE DA ESPERANCA;1;5;grafia
+Natal;PETROLPOLIS;PETROPOLIS;1;24;grafia
+Natal;PETROPOLES;PETROPOLIS;1;24;grafia
+Cariacica;JARDIM AMAERICA;JARDIM AMERICA;1;5;grafia
+Gaspar;SANTA TERESINHA;SANTA TEREZINHA;1;5;grafia
+João Pessoa;JUAGUARIBE;JAGUARIBE;1;22;grafia
+Belo Horizonte;SANTA EFGENIA;SANTA EFIGENIA;1;42;grafia
+Belo Horizonte;SANTA EFIGENCIA;SANTA EFIGENIA;1;42;grafia
+São Paulo;CAMPOS ELEISEOS;CAMPOS ELISEOS;1;5;grafia
+São Paulo;ERMELINDO MATARAZZO;ERMELINO MATARAZZO;1;6;grafia
+São Paulo;VIL CLEMENTINO;VILA CLEMENTINO;1;17;grafia
+São Paulo;VILA ROMANO;VILA ROMANA;1;5;grafia
+Viamão;AO LUCAS;SAO LUCAS;1;6;grafia
+Arcos;CENTR;CENTRO;1;10;grafia
+Lages;FRE ROGERIO;FREI ROGERIO;1;19;grafia
+Lages;SAO CRISTIVAO;SAO CRISTOVAO;1;17;grafia
+Mamanguape;CETRO;CENTRO;1;20;grafia
+Monte Alegre;ZONZ RURAL;ZONA RURAL;1;10;grafia
+Cândido Sales;CEBTRO;CENTRO;1;10;grafia
+Morro do Chapéu;CENTREO;CENTRO;1;17;grafia
+Morro do Chapéu;POCOADO;POVOADO;1;6;grafia
+Porto Alegre;CENTRO HISTORIC;CENTRO HISTORICO;1;11;grafia
+Dois Vizinhos;CENRO SUL;CENTRO SUL;1;8;grafia
+Afuá;ZONA RURA;ZONA RURAL;1;31;grafia
+Chapecó;PRESIDENTE MEDICI;PRESIDENTE MEDICE;1;5;grafia
+Ananindeua;CETRO;CENTRO;1;13;grafia
+Rio Verde;STOR CENTRAL;SETOR CENTRAL;1;18;grafia
+Maceió;JACINTINO;JACINTINHO;1;11;grafia
+Maceió;JACITINHO;JACINTINHO;1;11;grafia
+Caruaru;VASSORAL;VASSOURAL;1;6;grafia
+Araraquara;VIL XAVIER;VILA XAVIER;1;6;grafia
+Piranhas;XNGO;XINGO;1;8;grafia
+Miguel Pereira;GOVERNADOR PRTELA;GOVERNADOR PORTELA;1;5;grafia
+Sanharó;ZONA RUAL;ZONA RURAL;1;12;grafia
+Teixeira de Freitas;MONTE CATELO;MONTE CASTELO;1;6;grafia
+Brasília;TAGUATING;TAGUATINGA;1;12;grafia
+Camaçari;JADIM LIMOEIRO;JARDIM LIMOEIRO;1;5;grafia
+Barbalha;VILA SANTA ANTONIO;VILA SANTO ANTONIO;1;5;grafia
+Rio de Janeiro;MAGUINHOS;MANGUINHOS;1;37;grafia
+Ouro Preto;CACHOEIRO DO CAMPO;CACHOEIRA DO CAMPO;1;5;grafia
+Capanema;EOB;EEOB;1;6;grafia
+Uruaçu;CEWNTRO;CENTRO;1;38;grafia
+Paço do Lumiar;MAIOBA;MAIOBAO;1;10;grafia
+Bom Jardim;ZONA RURL;ZONA RURAL;1;8;grafia
+Parnamirim;NOVA PARNAMIRM;NOVA PARNAMIRIM;1;6;grafia
+São Caetano do Sul;SANTO PAULA;SANTA PAULA;1;7;grafia
+Guarantã do Norte;CIDADE NOVO;CIDADE NOVA;1;12;grafia
+Manaus;ADRIANOPOPLIS;ADRIANOPOLIS;1;11;grafia
+Manaus;CHPADA;CHAPADA;1;10;grafia
+Manaus;TACREDO NEVES;TANCREDO NEVES;1;10;grafia
+Nova Cruz;SONA RURAL;ZONA RURAL;1;13;grafia
+Porto Seguro;ARRAIAL D AJUDA;ARRAIAL DAJUDA;1;5;grafia
+Canoas;ESTANCIA VELHJA;ESTANCIA VELHA;1;5;grafia
+Pato Branco;CENRO;CENTRO;1;112;grafia
+Serrinha;ZONA TURAL;ZONA RURAL;1;7;grafia
+Boa Vista;MECEANA;MECEJANA;1;6;grafia
+Castanhal;ENTRO;CENTRO;1;11;grafia
+Santos;VIL BELMIRO;VILA BELMIRO;1;6;grafia
+Santos;VILA MATIAS;VILA MATHIAS;1;21;grafia
+Blumenau;VORDTADT;VORSTADT;1;5;grafia
+Serra;PARQUE RESIDENCIAL M;PARQUE RESIDENCIAL L;1;5;grafia
+Ouro Preto do Oeste;JARDIM TRIPICAL;JARDIM TROPICAL;1;10;grafia
+Novo Repartimento;ZONA ARURAL;ZONA RURAL;1;9;grafia
+Juruena;CENRO;CENTRO;1;7;grafia
+Lagoa do Carro;CETRO;CENTRO;1;7;grafia
+Palmas;PLANO DRETOR SUL;PLANO DIRETOR SUL;1;57;grafia
+Teófilo Otoni;MANUEL PIMENTA;MANOEL PIMENTA;1;7;grafia
+Cubatão;VIL NOVA;VILA NOVA;1;7;grafia
+Paulista;VILA TORRE GALVAO;VILA TORRES GALVAO;1;8;grafia
+Garanhuns;HELIOPOLES;HELIOPOLIS;1;55;grafia
+Garanhuns;HELOPOLIS;HELIOPOLIS;1;55;grafia
+Abaetetuba;ZONA RUARAL ILHAS;ZONA RURAL ILHAS;1;7;grafia
+Crateús;ZNA RURAL;ZONA RURAL;1;15;grafia
+Rio das Ostras;EXTENCAO DO BOSQUE;EXTENSAO DO BOSQUE;1;6;grafia
+Volta Redonda;VILA SANTA CECLIA;VILA SANTA CECILIA;1;35;grafia
+Volta Redonda;VILA SANTRA CECILIA;VILA SANTA CECILIA;1;35;grafia
+Mossoró;NOA BETANIA;NOVA BETANIA;1;8;grafia
+Mossoró;NOVA BETANEA;NOVA BETANIA;1;8;grafia
+Bragança;ZONA RURA;ZONA RURAL;1;21;grafia
+Rolim de Moura;PLANATO;PLANALTO;1;8;grafia
+Lapão;CENRO;CENTRO;1;17;grafia
+Votuporanga;POZZOBOM;POZZOBON;1;5;grafia
+Toledo;VILA PIONEIRA;VILA PIONEIRO;1;6;grafia
+Brusque;SANTA TERESINHA;SANTA TEREZINHA;1;7;grafia
+São Lourenço da Mata;VILA DO REINALDO;VILA DO REINADO;1;8;grafia
+Querência;SETOR B;SETOR A;1;5;grafia
+Querência;SETOR F;SETOR A;1;5;grafia
+Querência;SETOR G;SETOR A;1;5;grafia
+Querência;SETOR H;SETOR A;1;5;grafia
+Jijoca de Jericoacoara;NONA RURAL;ZONA RURAL;1;6;grafia
+Barras;MATODOURO;MATADOURO;1;6;grafia
+Sertãozinho;CENTRIO;CENTRO;1;8;grafia
+Jundiaí;CANTRO;CENTRO;1;15;grafia
+Duque de Caxias;VILA SAO LUIS;VILA SAO LUIZ;1;5;grafia
+Várzea Grande;CENTR SUL;CENTRO SUL;1;18;grafia
+Batalha;ZONARURAL;ZONA RURAL;1;14;grafia
+Belford Roxo;XAVANTE;XAVANTES;1;5;grafia
+Curralinho;ZPNA RURAL;ZONA RURAL;1;8;grafia
+São Miguel do Guamá;ZONA RUAL;ZONA RURAL;1;12;grafia
+Pindaí;ZONA RURA;ZONA RURAL;1;6;grafia
+Goiatuba;SEOR OESTE;SETOR OESTE;1;5;grafia
+Correntes;CENTROQ;CENTRO;1;7;grafia
+Inajá;CNTRO;CENTRO;1;7;grafia
+Cordeiro;RODOLFO CONCALVES;RODOLFO GONCALVES;1;5;grafia
+São Raimundo Nonato;ELDEIA;ALDEIA;1;6;grafia
+Floriano;MANGUIN HA;MANGUINHA;1;14;grafia
+Mogi das Cruzes;BRAS CUBAS;BRAZ CUBAS;1;5;grafia
+Imbituba;CENTRIO;CENTRO;1;11;grafia
+Imbituba;PAESLEME;PAES LEME;1;7;grafia
+Apodi;ZONA RUAL;ZONA RURAL;1;7;grafia
+Parintins;ZONA RUAL;ZONA RURAL;1;7;grafia
+Francinópolis;CETRO;CENTRO;1;9;grafia
+Conceição;CENTO;CENTRO;1;12;grafia
+Anapu;ZONA RUAL;ZONA RURAL;1;8;grafia
+Simplício Mendes;NOCA CIDADE;NOVA CIDADE;1;7;grafia
+São João da Ponte;ZONA URAL;ZONA RURAL;1;11;grafia
+Patos;BRASIILIA;BRASILIA;1;6;grafia
+Grajaú;RODOVIARIA;RODOVIARIO;1;7;grafia
+Mesquita;SATA TEREZINHA;SANTA TEREZINHA;1;10;grafia
+Sapucaia do Sul;CRNTRO;CENTRO;1;11;grafia
+Tangará da Serra;ZONA RUARAL;ZONA RURAL;1;7;grafia
+Teofilândia;CENTRP;CENTRO;1;7;grafia
+Londrina;VIL IPIRANGA;VILA IPIRANGA;1;8;grafia
+Bonito;ZONA RUAL;ZONA RURAL;1;6;grafia
+São João da Boa Vista;VIL CONRADO;VILA CONRADO;1;13;grafia
+Arroio do Meio;CCENTRO;CENTRO;1;16;grafia
+Missão Velha;CENRO;CENTRO;1;11;grafia
+Divino;GIVIZIEZ;GIVISIEZ;1;9;grafia
+Teutônia;CANABARO;CANABARRO;1;12;grafia
+Tuparetama;CENRO;CENTRO;1;9;grafia
+São Sebastião;TOOPOLANDIA;TOPOLANDIA;1;10;grafia
+Niquelândia;BEL HORIZONTE;BELO HORIZONTE;1;6;grafia
+Santo Estêvão;ZONA RUARAL;ZONA RURAL;1;10;grafia
+Nova Resende;CENTRP;CENTRO;1;5;grafia
+Delmiro Gouveia;ELDORDO;ELDORADO;1;9;grafia
+Delmiro Gouveia;ELDORODO;ELDORADO;1;9;grafia
+Iraquara;CEBTRO;CENTRO;1;7;grafia
+Paulo Ramos;ENTRO;CENTRO;1;9;grafia
+Andorinha;RONA RURAL;ZONA RURAL;1;5;grafia
+Portel;ZONA RUAL;ZONA RURAL;1;7;grafia
+Taperoá;CEBTRO;CENTRO;1;9;grafia
+Lima Campos;ZONA RUARAL;ZONA RURAL;1;9;grafia
+Angelim;CENRO;CENTRO;1;10;grafia
+Muaná;ZONA RUAL;ZONA RURAL;1;11;grafia
+Machados;CRNTRO;CENTRO;1;10;grafia
+Jatobá;CENRO;CENTRO;1;7;grafia
+São Felipe;BENTRO;CENTRO;1;6;grafia
+Nova Floresta;CEBTRO;CENTRO;1;7;grafia

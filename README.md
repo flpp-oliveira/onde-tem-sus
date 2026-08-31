@@ -22,6 +22,7 @@ Artefato de trabalho de conclusão de curso.
 | `gera_mapa.py` | o pipeline: lê o CNES bruto e produz o site |
 | `template.html` | a interface; os dados são injetados na geração |
 | `web/` | o site pronto — `index.html` e `fichas.json` |
+| `auditoria_bairros_202606.csv` | as 443 grafias de bairro alteradas, uma por linha |
 | `functions/api/report.js` | a API que recebe as correções enviadas pela população |
 | `schema.sql` | a tabela onde as correções são gravadas |
 | `wrangler.toml` | configuração do Cloudflare Pages |
@@ -65,9 +66,9 @@ confira os hashes contra `docs/HASHES_BASE_202606.txt` e rode:
 python gera_mapa.py 202606
 ```
 
-Sai `web/index.html` e `web/fichas.json` — o site publicável — mais a base
-tratada e a auditoria de bairros, que não são versionadas por serem
-regeneráveis.
+Sai `web/index.html` e `web/fichas.json` — o site publicável — mais
+`auditoria_bairros_202606.csv` e a base tratada. Esta última não é versionada:
+são 46 MB regeneráveis a qualquer momento por este mesmo comando.
 
 Não estão aqui os dois documentos do Ministério da Saúde consultados para
 interpretar a base: guardá-los seria redistribuir obra de terceiro. A origem, a

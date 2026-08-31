@@ -7,11 +7,12 @@ BASE_DE_DADOS_CNES_*/
 BASE_DE_DADOS_CNES_*.zip
 
 # --- saídas regeneráveis ------------------------------------------------------
-# Tudo abaixo sai de `python gera_mapa.py 202606`. A pasta web/ é a exceção
-# deliberada: é ela que o Cloudflare Pages publica, então fica versionada.
+# Tudo abaixo sai de `python gera_mapa.py 202606`, e fica de fora por volume.
+# Duas saídas são exceção deliberada e ficam versionadas: a pasta web/, que é o
+# que o Cloudflare Pages publica, e auditoria_bairros_*.csv, que é a prestação
+# de contas das grafias de bairro alteradas em relação à fonte.
 mapa_rede_sus_*.html
 base_tratada_*.csv
-auditoria_bairros_*.csv
 
 # --- ambiente -----------------------------------------------------------------
 # Estado local do wrangler: o banco D1 e o bucket R2 de teste desta máquina.
