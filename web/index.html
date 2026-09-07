@@ -575,7 +575,10 @@ function pegaTile(tz, tx, ty){
   im.crossOrigin = 'anonymous';   // o servidor libera CORS; sem isso o canvas fica
   im.onload = agendaRedraw;       // contaminado e não se pode mais ler pixel dele
   im.onerror = () => cacheTiles.set(k, null);
-  im.src = 'https://tile.openstreetmap.org/' + tz + '/' + tx + '/' + ty + '.png';
+  // estilo Humanitarian (HOT), hospedado pela OpenStreetMap France; subdominio
+  // a/b/c so pra paralelizar download (mesmo servidor, DNS diferente)
+  const sub = 'abc'[(tx + ty) % 3];
+  im.src = 'https://' + sub + '.tile.openstreetmap.fr/hot/' + tz + '/' + tx + '/' + ty + '.png';
   cacheTiles.set(k, im);
   return im;
 }
