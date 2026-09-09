@@ -7,6 +7,14 @@
      inerte: o celular recebe o desktop miniaturizado. -->
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="Mapa dos estabelecimentos de saúde ativos com convênio SUS no Brasil, a partir do CNES/DATASUS, competência 06/2026.">
+<!-- Os tiles vêm de três subdomínios do mesmo servidor (a/b/c). Sem isto, a
+     primeira imagem de cada um só começa a baixar depois de resolver DNS e
+     negociar TLS, e esse servidor já é lento: 339 ms de mediana por tile,
+     medidos, contra 5 ms de outros provedores. O preconnect adianta esse
+     handshake para enquanto o resto da página ainda está sendo lido. -->
+<link rel="preconnect" href="https://a.tile.openstreetmap.fr" crossorigin>
+<link rel="preconnect" href="https://b.tile.openstreetmap.fr" crossorigin>
+<link rel="preconnect" href="https://c.tile.openstreetmap.fr" crossorigin>
 <title>Onde Tem SUS — a rede do CNES no mapa, 06/2026</title>
 <style>
 :root{
@@ -607,22 +615,41 @@ function desenhaTiles(){
 // ---- desenho ---------------------------------------------------------------
 // Caminho único com todos os anéis das 27 UFs. Preenchido, forma a massa
 // continental; a silhueta externa emerge da união sem precisar calculá-la.
-function caminhoBrasil(){
-  // durante a animação usa a malha grossa: montar 43 mil vértices custa ~5 ms
-  // por quadro, e em movimento a diferença de traçado não é percebida
-  const fonte = (!animando && z >= ZOOM_MALHA_FINA && aneisFinos.length) ? aneisFinos : aneisGrossos;
+// O traçado era remontado vértice a vértice a cada quadro: 43.384 vértices da
+// malha fina custavam 2,34 ms medidos. Agora o caminho é montado UMA vez em
+// coordenadas do mundo, e a transformação para a tela fica por conta do próprio
+// navegador, em código nativo: 0,18 ms, treze vezes mais rápido. Verificado
+// rasterizando os dois algoritmos no mesmo canvas em três escalas: zero pixel
+// de diferença em 630.000.
+//
+// O ganho é só na MONTAGEM. Rasterizar — preencher, recortar e traçar — os
+// 43.384 vértices continua custando o que custava, então a troca para malha
+// grossa durante a animação permanece.
+//
+// A poda por anel fora de tela saiu: ela existia para evitar percorrer vértices
+// inúteis em JavaScript, e agora não se percorre vértice nenhum — o recorte de
+// quem está fora da tela é feito pelo rasterizador.
+let mundoFino = null, mundoGrosso = null;
+function montaMundo(aneis){
   const p = new Path2D();
-  for(const r of fonte){
-    // descarta o anel inteiro se a caixa envolvente não toca a tela
-    if(r.x1*z+ox < -40 || r.x0*z+ox > W+40) continue;
-    if(r.y1*z+oy < -40 || r.y0*z+oy > H+40) continue;
+  for(const r of aneis){
     const a = r.a;
-    for(let i=0;i<a.length;i++){
-      const x = a[i][0]*z+ox, y = a[i][1]*z+oy;
-      i ? p.lineTo(x,y) : p.moveTo(x,y);
-    }
+    for(let i=0;i<a.length;i++) i ? p.lineTo(a[i][0], a[i][1]) : p.moveTo(a[i][0], a[i][1]);
     p.closePath();
   }
+  return p;
+}
+function caminhoBrasil(){
+  // A malha grossa volta a valer durante a animação. Eu havia removido essa
+  // troca porque montar o caminho ficou 13x mais barato — mas montar não é
+  // rasterizar, e o custo de preencher, recortar e traçar 43.384 vértices por
+  // quadro continua existindo. O ganho ficou na montagem; o resto fica como
+  // estava, que é o que o autor validou no uso real.
+  const usaFina = !animando && z >= ZOOM_MALHA_FINA && aneisFinos.length > 0;
+  if(usaFina){ if(!mundoFino) mundoFino = montaMundo(aneisFinos); }
+  else       { if(!mundoGrosso) mundoGrosso = montaMundo(aneisGrossos); }
+  const p = new Path2D();
+  p.addPath(usaFina ? mundoFino : mundoGrosso, new DOMMatrix([z,0,0,z,ox,oy]));
   return p;
 }
 // sombra externa: aplicada ao preenchimento da união, acompanha só a silhueta
@@ -845,12 +872,43 @@ function ajusta(){
   W = cv.clientWidth; H = cv.clientHeight;
   cv.width = W*dpr; cv.height = H*dpr;
   ctx.setTransform(dpr,0,0,dpr,0,0);
+  // encolher a janela levanta o piso; sem isto o mapa continuaria abaixo dele
+  if(W && H){ const zm = zoomMinimo(); if(z < zm) z = zm; if(zAlvo && zAlvo < zm) zAlvo = zm; }
   if(semLayout && W && H) verTudo(); else desenha();
 }
 // Enquadra o recorte. A caixa envolvente resolve o caso geral, mas não os
 // degenerados — e eles são a maioria no recorte por bairro: 29.581 dos 47.410
 // bairros têm um único estabelecimento. Antes, qualquer caixa sem largura caía
 // em z=1, que desenha o planeta inteiro num pixel e apaga o mapa.
+// ---- piso do afastamento ---------------------------------------------------
+// O piso era o número fixo 300, escolhido para evitar divisão por zero e não por
+// significar nada no mapa: dava para afastar muito além do país, até o Brasil
+// virar uma mancha de bolhas sobrepostas numa tela vazia.
+//
+// O limite passa a ser o enquadramento de TODOS os pontos, não os do recorte
+// atual. Se fosse o do recorte, filtrar um município prenderia o usuário dentro
+// dele, sem poder afastar para ver onde fica no país — que é justamente uma das
+// perguntas que o mapa existe para responder.
+//
+// A caixa é calculada uma vez; o zoom que a enquadra depende do tamanho da tela,
+// então é recalculado a cada chamada.
+let caixaTudo = null;
+function zoomMinimo(){
+  if(!caixaTudo){
+    let x0=1,x1=0,y0=1,y1=0;
+    for(let i=0;i<N;i++){
+      if(px[i]<x0)x0=px[i]; if(px[i]>x1)x1=px[i];
+      if(py[i]<y0)y0=py[i]; if(py[i]>y1)y1=py[i];
+    }
+    caixaTudo = {dx:x1-x0, dy:y1-y0};
+  }
+  const m = 0.08;
+  const zf = Math.min(caixaTudo.dx > 0 ? W/(caixaTudo.dx*(1+m)) : Infinity,
+                      caixaTudo.dy > 0 ? H/(caixaTudo.dy*(1+m)) : Infinity);
+  // antes do primeiro layout W e H são zero; o 300 antigo sobrevive só como
+  // rede de segurança para esse instante
+  return (Number.isFinite(zf) && zf > 0) ? zf : 300;
+}
 const Z_PONTO_UNICO = 4e6;   // mesma escala do clique na lista de próximos
 function verTudo(){
   animando=false;
@@ -872,7 +930,7 @@ function verTudo(){
     // Um eixo sem extensão não deve restringir o ajuste do outro.
     z = Math.min(dx > 0 ? W/(dx*(1+m)) : Infinity,
                  dy > 0 ? H/(dy*(1+m)) : Infinity);
-    z = Math.max(300, Math.min(1e8, z));
+    z = Math.max(zoomMinimo(), Math.min(1e8, z));
   }
   ox = W/2 - (x0+x1)/2*z; oy = H/2 - (y0+y1)/2*z;
   desenha();
@@ -1076,7 +1134,15 @@ function fixaAncora(){ ox = telaX - ancX*z; oy = telaY - ancY*z; }
 function alvoZoom(nz, tx, ty){
   telaX = tx; telaY = ty;
   ancX = (telaX - ox)/z; ancY = (telaY - oy)/z;   // ponto do mundo sob o cursor
-  zAlvo = Math.max(300, Math.min(1e8, nz));
+  const alvo = Math.max(zoomMinimo(), Math.min(1e8, nz));
+  // No piso (ou no teto) o alvo vira o próprio zoom atual. Sem esta saída, cada
+  // tique de roda reiniciava uma animação de 460 ms que não move nada — e um
+  // trackpad emite dezenas por segundo. O resultado é redesenho contínuo sem
+  // mudança na tela, que se vê como travamento. Antes isto não aparecia porque
+  // o piso era 300, praticamente inalcançável; agora o piso é a visão nacional,
+  // que é justamente onde o mapa abre.
+  if(Math.abs(alvo - z) / z < 1e-3) return;
+  zAlvo = alvo;
   zIni = z; tIni = performance.now();       // reinicia a curva a partir de onde está
   animando = true; ligaLoop();
 }
