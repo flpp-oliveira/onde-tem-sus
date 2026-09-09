@@ -193,6 +193,12 @@ dd{margin:0;color:var(--ink2)}
   border-radius:6px;background:var(--plane);color:var(--ink2);font-size:12px;
   font-weight:600;text-align:center}
 .reportar:hover{background:var(--border)}
+/* A chamada e o botão aparecem e somem juntos, então o bloco é que carrega a
+   margem — e o botão perde a dele, senão os dois se somariam. O seletor por id
+   é necessário para vencer o .reportar acima, que já define margin-top. */
+#blocoReport{margin-top:10px}
+#blocoReport .reportar{margin-top:0}
+.chamadaReport{margin:0 0 6px;font-size:11.5px;line-height:1.4;color:var(--muted)}
 #fReport{margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
 #fReport label{display:block;font-size:11.5px;color:var(--muted);margin:8px 0 4px}
 #fReport label:first-child{margin-top:0}
@@ -257,6 +263,26 @@ dd{margin:0;color:var(--ink2)}
 .lista small{display:block;color:var(--muted);font-size:11.5px}
 .voltar{border:0;background:none;color:var(--ink2);font-size:12px;padding:0 0 9px;
   text-decoration:underline;width:auto}
+
+/* ---- aviso de entrada -----------------------------------------------------
+   Cobre a tela inteira e usa os mesmos tokens do resto, então acompanha o tema
+   claro e o escuro sem regra própria de cor. */
+#veuAviso{position:fixed;inset:0;z-index:100;background:rgba(11,11,11,.55);
+  display:flex;align-items:center;justify-content:center;padding:20px}
+#veuAviso[hidden]{display:none}
+#caixaAviso{background:var(--surface);color:var(--ink);border:1px solid var(--border);
+  border-radius:10px;box-shadow:0 12px 40px rgba(0,0,0,.35);
+  max-width:440px;width:100%;padding:22px 24px;max-height:88vh;overflow-y:auto}
+#caixaAviso h2{margin:0 0 12px;font-size:16.5px;line-height:1.3}
+#caixaAviso p{margin:0 0 12px;font-size:13.5px;line-height:1.55;color:var(--ink2)}
+#caixaAviso p:last-of-type{margin-bottom:18px}
+#caixaAviso strong{color:var(--ink);font-weight:600}
+#bAvisoOk{width:100%;border:0;background:var(--pub);color:#fff;font-weight:600;
+  font-size:13px;padding:9px 0;border-radius:6px}
+@media (max-width:820px){
+  #caixaAviso{padding:18px 18px}
+  #caixaAviso h2{font-size:15.5px}
+}
 
 @media (max-width:820px){
   body{flex-direction:column}
@@ -395,7 +421,10 @@ dd{margin:0;color:var(--ink2)}
         <h3 id="hServs">Serviços especializados</h3><div class="servs" id="cServs"></div>
       </div>
       <div class="cnes">CNES <span id="cCnes"></span></div>
-      <button class="reportar" id="bReport" type="button">📍 Reportar localização</button>
+      <div id="blocoReport">
+        <p class="chamadaReport">Encontrou uma inconsistência nesta ficha? Use o botão abaixo.</p>
+        <button class="reportar" id="bReport" type="button">📍 Reportar localização</button>
+      </div>
       <form id="fReport" style="display:none" aria-label="Reportar problema de localização">
         <label for="rTipo">O que está errado?</label>
         <select id="rTipo">
@@ -454,6 +483,23 @@ dd{margin:0;color:var(--ink2)}
     <button type="button" id="bCancelaMarcar">Cancelar</button>
   </div>
 </main>
+
+<!-- Aviso de entrada. Fica depois do mapa no documento para não atrasar a
+     primeira pintura da interface, e é mostrado pelo script. -->
+<div id="veuAviso" role="dialog" aria-modal="true" aria-labelledby="tituloAviso" hidden>
+  <div id="caixaAviso">
+    <h2 id="tituloAviso">Sobre a precisão dos dados</h2>
+    <p>Os endereços e as coordenadas vêm do <strong>CNES</strong>, o cadastro
+       oficial do Ministério da Saúde, preenchido por cada gestor local. Esses
+       dados podem conter inconsistências, e o mapa os apresenta exatamente como
+       o cadastro declara, <strong>sem correção automática</strong>.</p>
+    <p>Se você conhece um estabelecimento que está no lugar errado, que não
+       existe mais ali ou que aparece duplicado, abra a ficha dele e use o botão
+       <strong>Reportar localização</strong>. As correções enviadas ficam
+       registradas para conferência.</p>
+    <button id="bAvisoOk" type="button">Entendi</button>
+  </div>
+</div>
 
 <script type="application/json" id="dados">/*__DADOS__*/</script>
 <script>
@@ -1267,7 +1313,7 @@ function mostra(i){
   g('cCnes').textContent = cnes[i];
   reportIdx = i;
   g('fReport').style.display = 'none';
-  g('bReport').style.display = 'block';
+  g('blocoReport').style.display = 'block';
   g('rMsg').style.display = 'none';
   g('rTipo').value = 'endereco_errado';
   g('rTexto').value = '';
@@ -1377,13 +1423,13 @@ g('rArquivo').addEventListener('change', ()=>{
 });
 
 g('bReport').onclick=()=>{
-  g('bReport').style.display='none';
+  g('blocoReport').style.display='none';
   g('fReport').style.display='block';
   g('rTipo').focus();
 };
 g('bReportCancela').onclick=()=>{
   g('fReport').style.display='none';
-  g('bReport').style.display='block';
+  g('blocoReport').style.display='block';
 };
 g('fReport').addEventListener('submit', async (ev)=>{
   ev.preventDefault();
@@ -1533,6 +1579,44 @@ function desenhaObservador(){
 }
 
 // ---- início ----------------------------------------------------------------
+// ---- aviso de entrada ------------------------------------------------------
+// Aparece uma vez por navegador. Mostrar a cada visita puniria justamente quem
+// volta — e quem volta já leu. A dispensa fica em localStorage, que pode não
+// existir (aba anônima, site data bloqueado) e chega a lançar em alguns
+// contextos; por isso toda leitura e escrita vai dentro de try. Falhando, o
+// pior caso é o aviso reaparecer, nunca a página quebrar.
+const CHAVE_AVISO = 'ondetemsus.aviso.v1';
+function jaViuAviso(){
+  try{ return localStorage.getItem(CHAVE_AVISO) === '1'; }catch(_){ return false; }
+}
+function marcaAvisoVisto(){
+  try{ localStorage.setItem(CHAVE_AVISO, '1'); }catch(_){}
+}
+const veuAviso = g('veuAviso');
+let focoAntesDoAviso = null;
+function fechaAviso(){
+  if(veuAviso.hidden) return;
+  veuAviso.hidden = true;
+  marcaAvisoVisto();
+  document.removeEventListener('keydown', teclaAviso, true);
+  if(focoAntesDoAviso && focoAntesDoAviso.focus) focoAntesDoAviso.focus();
+}
+function teclaAviso(e){
+  if(e.key === 'Escape'){ e.preventDefault(); fechaAviso(); return; }
+  // prende o foco na caixa: sem isto, Tab levaria para os seletores atrás do véu
+  if(e.key === 'Tab'){ e.preventDefault(); g('bAvisoOk').focus(); }
+}
+function abreAviso(){
+  focoAntesDoAviso = document.activeElement;
+  veuAviso.hidden = false;
+  document.addEventListener('keydown', teclaAviso, true);
+  g('bAvisoOk').focus();
+}
+g('bAvisoOk').onclick = fechaAviso;
+// clique no véu fecha; clique dentro da caixa não
+veuAviso.addEventListener('pointerdown', e => { if(e.target === veuAviso) fechaAviso(); });
+if(!jaViuAviso()) abreAviso();
+
 new ResizeObserver(ajusta).observe(cv);
 ajusta(); filtra(); verTudo();
 })();
