@@ -11,10 +11,17 @@
      primeira imagem de cada um só começa a baixar depois de resolver DNS e
      negociar TLS, e esse servidor já é lento: 339 ms de mediana por tile,
      medidos, contra 5 ms de outros provedores. O preconnect adianta esse
-     handshake para enquanto o resto da página ainda está sendo lido. -->
-<link rel="preconnect" href="https://a.tile.openstreetmap.fr" crossorigin>
-<link rel="preconnect" href="https://b.tile.openstreetmap.fr" crossorigin>
-<link rel="preconnect" href="https://c.tile.openstreetmap.fr" crossorigin>
+     handshake para enquanto o resto da página ainda está sendo lida.
+     Serve só a primeira visita: em visita seguinte os tiles vêm do cache do
+     navegador e nem chegam a pedir conexão.
+
+     SEM crossorigin, deliberadamente. Os tiles são carregados por <img> comum,
+     que não usa CORS, e uma conexão pré-aberta em modo CORS não é reaproveitada
+     por requisição que não usa CORS — o preconnect viraria enfeite, e ainda
+     abriria uma conexão a mais. -->
+<link rel="preconnect" href="https://a.tile.openstreetmap.fr">
+<link rel="preconnect" href="https://b.tile.openstreetmap.fr">
+<link rel="preconnect" href="https://c.tile.openstreetmap.fr">
 <title>Onde Tem SUS — a rede do CNES no mapa, 06/2026</title>
 <style>
 :root{
