@@ -563,6 +563,23 @@ const D = JSON.parse(document.getElementById('dados').textContent);
 const g = id => document.getElementById(id);
 const fmt = n => n.toLocaleString('pt-BR');
 
+// ---- escala em níveis de zoom ----------------------------------------------
+// z é a largura do mundo inteiro em pixels. O nível de tile sai de log2(z/256),
+// então z e o nível do Web Mercator — o mesmo do Google Maps e do OpenStreetMap
+// — são a MESMA grandeza em unidades diferentes: o nível n vale 256*2^n.
+// Escrever os limiares em nível, e não no número grande, é o que torna a
+// hierarquia legível: 5,9 e 12,2 dizem a que distância o modo troca; 15.000 e
+// 1.200.000 não dizem nada.
+const Z = n => 256*Math.pow(2, n);
+const NIVEL = zz => Math.log2(zz/256);
+// Um passo de roda. Medido no Google Maps: um tique (deltaY 120) vale 0,25
+// nível, isto é 2^0,25 = 1,189x. O nosso valia 1,87x — 0,90 nível, quase quatro
+// vezes o degrau — e era o que fazia o zoom parecer pular: da visão nacional
+// (nível 4,9) aos pinos (12,2) são 7,3 níveis, que o Google percorre em 29
+// tiques e nós percorríamos em 8.
+const PASSO_NIVEL = 0.25;
+const PASSO_RODA = Math.pow(2, PASSO_NIVEL);
+
 // ---- descompacta -----------------------------------------------------------
 function delta(str){
   const p = str.split(','), out = new Float64Array(p.length);
@@ -803,9 +820,9 @@ function pinoSob(mx, my){
   }
   return melhor;
 }
-// A malha fina entra já na visão de ~200 km (z 15.000). Medido: escala 200 km
-// corresponde a z 18.000; 100 km a 38.700; 50 km a 83.600.
-const ZOOM_MALHA_FINA = 15000;
+// A malha fina entra já na visão de ~200 km — nível 5,87. Medido: a escala de
+// 200 km corresponde ao nível 6,14; 100 km ao 7,24; 50 km ao 8,35.
+const ZOOM_MALHA_FINA = Z(5.87);
 
 // ---- agrupa coordenadas idênticas ------------------------------------------
 const grupoDe = new Int32Array(N).fill(-1), grupos = [];
@@ -852,14 +869,18 @@ let bolhasNaTela = [];
 // Lado da célula de aglutinação. Grande nas escalas intermediárias — poucas
 // bolhas, mapa visível — e diminuindo à medida que se aproxima, até os pinos.
 function celulaAtual(){
-  return z < 3e5 ? 130 : z < 6e5 ? 100 : z < 1e6 ? 76 : 56;
+  const n = NIVEL(z);
+  return n < 10.2 ? 130 : n < 11.2 ? 100 : n < 11.93 ? 76 : 56;
 }
-const ZOOM_PINOS = 1.2e6;               // acima disto, cada estabelecimento é um pino
-// Largura da faixa de transição entre dois modos de desenho, como fator de
-// zoom: a troca acontece entre T e T*1,7, não num ponto. Em log, 1,7 é pouco
-// menos de um passo de roda (que vale ~1,9x), então a dissolução cabe dentro
-// de um gesto — não se arrasta por vários, nem passa despercebida.
-const BANDA_TROCA = 1.7;
+const ZOOM_PINOS = Z(12.2);             // acima disto, cada estabelecimento é um pino
+// Largura da faixa de transição entre dois modos de desenho: a troca acontece
+// entre T e T*BANDA_TROCA, não num ponto. A faixa tem que valer UM passo de
+// roda, nem mais nem menos, e por isso é o próprio passo. Menos, e a dissolução
+// passa despercebida. Mais, e como foraDaFaixa empurra todo repouso para fora
+// dela, um tique que caia lá dentro é arremessado a faixa inteira: o passo
+// aparente deixa de ser o passo pedido. Quando a roda valia 1,87x a faixa era
+// 1,7; agora que vale 1,19x, é 1,19.
+const BANDA_TROCA = PASSO_RODA;
 function mistura(zz, T){
   if(zz <= T) return 0;
   if(zz >= T*BANDA_TROCA) return 1;
@@ -952,7 +973,7 @@ function pegaTile(tz, tx, ty){
 // vegetação sob os rótulos sem competir com eles nem com as bolhas.
 //   1. visão nacional — carta esmaecida, divisas e nomes dos estados
 //   2. ao ampliar     — carta em cheio
-const ZOOM_CONTEXTO = 15000;
+const ZOOM_CONTEXTO = Z(5.87);
 function desenhaTiles(){
   // nível natural da escala: o tile é desenhado perto dos 256 px em que foi
   // composto, e os topônimos saem no corpo de origem. Pedir um nível acima
@@ -1488,10 +1509,16 @@ function desenha(){
   // troca instantânea apaga a correspondência entre as duas leituras. A faixa
   // mantém os dois desenhos coexistindo pelo tempo do gesto.
   //
-  // As duas faixas nunca se sobrepõem — ZOOM_CONTEXTO é 15 mil e ZOOM_PINOS é
-  // 1,2 milhão —, então as três opacidades sempre somam 1.
-  const aUF    = ufFiltrada ? 0 : 1 - mistura(z, ZOOM_CONTEXTO);
-  const aPino  = munFiltrada ? 1 : mistura(z, ZOOM_PINOS);
+  // As duas faixas nunca se sobrepõem — ZOOM_CONTEXTO está no nível 5,87 e
+  // ZOOM_PINOS no 12,2, e cada uma tem só um quarto de nível de largura —,
+  // então as três opacidades sempre somam 1.
+  let aUF   = ufFiltrada ? 0 : 1 - mistura(z, ZOOM_CONTEXTO);
+  let aPino = munFiltrada ? 1 : mistura(z, ZOOM_PINOS);
+  // A dissolução vale enquanto o gesto acontece. PARADO, nunca: meia bolha com
+  // meio pino por baixo não é transição, é sujeira — duas simbologias
+  // diferentes a 50% cada leem como defeito de desenho, não como progressão.
+  // Em repouso o quadro mostra um modo só, sempre.
+  if(!animando){ aUF = aUF >= 0.5 ? 1 : 0; aPino = aPino >= 0.5 ? 1 : 0; }
   const aGrade = (1 - aUF) * (1 - aPino);
   const raio = 7.5;
   ctx.lineJoin = 'round';
@@ -1619,7 +1646,7 @@ function zoomMinimo(){
   // rede de segurança para esse instante
   return (Number.isFinite(zf) && zf > 0) ? zf : 300;
 }
-const Z_PONTO_UNICO = 4e6;   // mesma escala do clique na lista de próximos
+const Z_PONTO_UNICO = Z(13.93);   // mesma escala do clique na lista de próximos
 // Um zoom de repouso não pode cair DENTRO de uma faixa de transição: ali dois
 // modos convivem a meia opacidade, e o mapa fica parado num estado turvo — a
 // bolha translúcida com os pinos aparecendo por baixo. A faixa existe para ser
@@ -2009,7 +2036,22 @@ function linhaRotulo(token, nome, n){
 // que produz a sensação dura de salto.
 let zAlvo = 0, zIni = 0, tIni = 0, ancX = 0, ancY = 0, telaX = 0, telaY = 0, animando = false;
 let telaXi = 0, telaYi = 0, telaXf = 0, telaYf = 0;   // trajeto da âncora na tela
-const DUR_ZOOM = 460;   // duração do gesto, em ms
+// A duração acompanha a distância. Com um passo de roda de 0,25 nível, 460 ms
+// fixos para um degrau pequeno fazem os tiques se enfileirarem: cada um reinicia
+// uma animação longa que mal move o mapa, e o gesto fica borrachudo. Um salto de
+// vários níveis, ao contrário, precisa de tempo para ser lido. 150 ms de base
+// mais 300 ms por nível atende os dois: 225 ms para um tique de roda, 450 ms
+// para um botão, o teto para um enquadramento.
+//
+// O deslocamento da âncora na tela conta junto, a 600 px por nível: enquadrar um
+// município vizinho do mesmo tamanho quase não muda o zoom, e sem essa parcela a
+// tela inteira varreria em 150 ms.
+const DUR_BASE = 150, DUR_POR_NIVEL = 300, DUR_MAX = 560, PX_POR_NIVEL = 600;
+let durZoom = DUR_BASE;
+function duracaoDe(zi, zf, dpx){
+  const d = Math.abs(Math.log2(zf/zi)) + (dpx || 0)/PX_POR_NIVEL;
+  return Math.min(DUR_MAX, DUR_BASE + DUR_POR_NIVEL*d);
+}
 
 // rAF não dispara em aba oculta nem em alguns contextos embutidos; a reserva
 // garante que a animação avance de qualquer forma
@@ -2030,7 +2072,10 @@ function alvoZoom(nz, tx, ty, txFim, tyFim){
   telaXf = (txFim === undefined) ? tx : txFim;
   telaYf = (tyFim === undefined) ? ty : tyFim;
   ancX = (telaX - ox)/z; ancY = (telaY - oy)/z;   // ponto do mundo sob o cursor
-  const alvo = Math.max(zoomMinimo(), Math.min(1e8, nz));
+  // foraDaFaixa aqui, e não só em verTudo: a roda e os botões também escolhem
+  // onde o mapa PARA, e parar no meio de uma troca de modo é o que produzia
+  // bolhas e pinos sobrepostos. Assim a faixa só é atravessada, nunca habitada.
+  const alvo = Math.max(zoomMinimo(), Math.min(1e8, foraDaFaixa(nz)));
   // No piso (ou no teto) o alvo vira o próprio zoom atual. Sem esta saída, cada
   // tique de roda reiniciava uma animação de 460 ms que não move nada — e um
   // trackpad emite dezenas por segundo. O resultado é redesenho contínuo sem
@@ -2044,13 +2089,14 @@ function alvoZoom(nz, tx, ty, txFim, tyFim){
      Math.abs(telaXf - telaXi) < 1 && Math.abs(telaYf - telaYi) < 1) return;
   zAlvo = alvo;
   zIni = z; tIni = performance.now();       // reinicia a curva a partir de onde está
+  durZoom = duracaoDe(zIni, zAlvo, Math.hypot(telaXf - telaXi, telaYf - telaYi));
   animando = true; ligaLoop();
 }
 // A curva é função do TEMPO, não do número de quadros: antes, um navegador
 // lento levava segundos e um rápido meio segundo para o mesmo gesto. Agora a
 // duração é a mesma e a taxa de quadros só afeta a suavidade.
 function avancaZoom(){
-  const t = Math.min(1, (performance.now() - tIni) / DUR_ZOOM);
+  const t = Math.min(1, (performance.now() - tIni) / durZoom);
   const e = 1 - Math.pow(1 - t, 3);             // desaceleração cúbica
   z = zIni * Math.pow(zAlvo/zIni, e);           // interpolação em escala log
   // a âncora percorre o trajeto com a MESMA curva do zoom, senão o deslocamento
@@ -2128,10 +2174,10 @@ cv.addEventListener('wheel',e=>{
   e.preventDefault();
   const r=cv.getBoundingClientRect();
   const base = animando ? zAlvo : z;
-  // 0,0052 faz um passo de roda (deltaY 120) valer ~1,9x — praticamente um nível
-  // de zoom, que é o passo esperado num mapa. O expoente mantém a proporção para
-  // trackpads, que emitem muitos eventos de delta pequeno.
-  const nz = base*Math.exp(-e.deltaY*0.0052);
+  // Um tique (deltaY 120) vale exatamente PASSO_RODA — 0,25 nível, o mesmo do
+  // Google. O expoente mantém a proporção para trackpads, que emitem muitos
+  // eventos de delta pequeno.
+  const nz = base*Math.pow(PASSO_RODA, -e.deltaY/120);
   alvoZoom(comSalto(base, nz, e.deltaY < 0), e.clientX-r.left, e.clientY-r.top);
 },{passive:false});
 function zoomBotao(f){
