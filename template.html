@@ -27,7 +27,14 @@
 :root{
   color-scheme: light;
   --surface:#fcfcfb; --plane:#f9f9f7;
-  --ink:#0b0b0b; --ink2:#52514e; --muted:#898781;
+  /* o cinza secundário era #898781: 3,50:1 sobre a ficha (#fcfcfb), abaixo do
+     piso de 4,5:1 para texto. Ele pinta a coluna de rótulos da ficha (dt),
+     os títulos de bloco, a linha do CNES, a chamada do report e o crédito do
+     mapa — o miolo do que se lê ali. Este rende 5,03:1, e continua bem mais
+     claro que o --ink2 dos valores (7,73:1), então a hierarquia rótulo/valor
+     não se achata. O mesmo token no tema escuro fica: lá o #898781 assenta
+     sobre #1a1a19 e já rende 4,85:1. */
+  --ink:#0b0b0b; --ink2:#52514e; --muted:#6f6d68;
   --line:#e1e0d9; --border:rgba(11,11,11,.10);
   /* laranja no passo mais escuro: sobre a terra bege o passo claro cai para
      2,84:1, abaixo do piso de 3:1 (validado contra a superfície real) */
@@ -179,14 +186,38 @@ canvas.arrastando{cursor:grabbing}
 .tag{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--ink2);margin-bottom:10px}
 .fechar{position:absolute;right:8px;top:8px;border:0;background:none;color:var(--muted);
   font-size:17px;padding:2px 5px;width:auto}
-dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-size:12.5px}
-dt{color:var(--muted);white-space:nowrap}
-dd{margin:0;color:var(--ink2)}
+/* O bloco lia-se como um parágrafo, e não como uma tabela, porque o vão estava
+   invertido: com fonte 12,5 e entrelinha 18,75, duas linhas de um MESMO valor
+   ficavam ~6,25 px separadas, enquanto duas LINHAS DIFERENTES da tabela ficavam
+   3 px (o gap). Como o olho agrupa por proximidade, o endereço quebrado em duas
+   linhas colava no "Bairro" seguinte. Agora o espaço vertical vem do padding de
+   cada célula (9+9 px) e o fio marca a divisão, então a hierarquia se inverte de
+   volta: separação entre campos > separação dentro do campo. */
+/* O vão entre as colunas é padding do rótulo, e NÃO column-gap. Com gap, o fio
+   nasce separado em cada célula e fica partido no meio da linha — 10 px de
+   interrupção que parecem defeito, não desenho. Como padding, as duas bordas
+   se encostam e o fio atravessa a ficha inteiro. */
+dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:0;font-size:12.5px}
+dt{display:flex;align-items:center;gap:7px;color:var(--muted);white-space:nowrap;padding:9px 10px 9px 0}
+dd{margin:0;color:var(--ink2);padding:9px 0}
+/* fio a partir da segunda linha: o dt que não é o primeiro, e o dd logo após
+   ele. dt e dd se alternam, então o irmão adjacente do dt é sempre o seu dd. */
+dl>dt:not(:first-of-type), dl>dt:not(:first-of-type)+dd{border-top:1px solid var(--line)}
+/* Os ícones são SVG embutido, não fonte de ícone: são seis glifos, e puxar uma
+   webfont só por eles custaria uma requisição a mais numa página que já carrega
+   5 MB. currentColor os amarra ao --muted do rótulo, inclusive no tema escuro. */
+dt svg{flex:none;width:15px;height:15px;stroke:currentColor;fill:none;
+  stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+/* campo que o cadastro não traz: dito por extenso, não por travessão */
+dd .semdado{color:var(--muted)}
 .bloco{margin-top:11px;padding-top:10px;border-top:1px solid var(--line)}
 .bloco h3{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin:0 0 6px}
 .servs{display:flex;flex-wrap:wrap;gap:4px}
 .serv{font-size:11.5px;background:var(--plane);border:1px solid var(--border);
   border-radius:3px;padding:2px 6px;color:var(--ink2)}
+/* plantão de 24 h: é o fato operacional que mais importa a quem procura
+   atendimento agora, então destoa das demais etiquetas de turno */
+.serv.plantao{border-color:var(--pub);color:var(--pub)}
 .cnes{margin-top:11px;padding-top:9px;border-top:1px solid var(--line);
   font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums}
 .reportar{width:100%;margin-top:10px;padding:8px 10px;border:1px solid var(--border);
@@ -406,13 +437,17 @@ dd{margin:0;color:var(--ink2)}
       <button class="voltar" id="bVoltar" style="display:none">← voltar à lista</button>
       <h2 id="cNome"></h2>
       <div class="tag"><span class="chave" id="cCor"></span><span id="cTipo"></span></div>
+      <!-- Os ícones são decorativos: cada rótulo continua escrito ao lado, que é
+           o que o fluxo de report exige (quem corrige precisa saber se errou o
+           bairro ou o logradouro). Daí o aria-hidden — o leitor de tela lê o
+           rótulo, não o desenho. -->
       <dl>
-        <dt>Endereço</dt><dd id="cEnd"></dd>
-        <dt>Bairro</dt><dd id="cBairro"></dd>
-        <dt>Município</dt><dd id="cMun"></dd>
-        <dt>CEP</dt><dd id="cCep"></dd>
-        <dt>Telefone</dt><dd id="cTel"></dd>
-        <dt>Atendimento</dt><dd id="cTurno"></dd>
+        <dt><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="10" r="2.6"/><path d="M12 21.5c4.2-4.8 6.3-7.8 6.3-10.6a6.3 6.3 0 1 0-12.6 0c0 2.8 2.1 5.8 6.3 10.6z"/></svg>Endereço</dt><dd id="cEnd"></dd>
+        <dt><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6.5l6-3 6 3 6-3v14l-6 3-6-3-6 3z"/><path d="M9 3.5v14M15 6.5v14"/></svg>Bairro</dt><dd id="cBairro"></dd>
+        <dt><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 20.5h17"/><path d="M5.5 20.5V8l6.5-4.5L18.5 8v12.5"/><path d="M9.5 20.5v-5h5v5"/></svg>Município</dt><dd id="cMun"></dd>
+        <dt><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5.5" width="18" height="13" rx="2"/><path d="M3.5 7.5l8.5 6 8.5-6"/></svg>CEP</dt><dd id="cCep"></dd>
+        <dt><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3.5h3.8l1.9 4.7-2.4 1.4a11.5 11.5 0 0 0 5.1 5.1l1.4-2.4 4.7 1.9V18a2.5 2.5 0 0 1-2.5 2.5A16.5 16.5 0 0 1 2.5 6 2.5 2.5 0 0 1 5 3.5z"/></svg>Telefone</dt><dd id="cTel"></dd>
+        <dt><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.7"/><path d="M12 6.8V12l3.4 2"/></svg>Atendimento</dt><dd id="cTurno"></dd>
       </dl>
       <div class="bloco" id="bLeitos" style="display:none">
         <h3>Leitos</h3><div id="cLeitos" style="font-size:12.5px;color:var(--ink2)"></div>
@@ -1262,6 +1297,62 @@ function clique(e){
 }
 
 // ---- ficha -----------------------------------------------------------------
+// ---- turno de atendimento --------------------------------------------------
+// O CNES descreve o turno numa frase — e a frase mais comum, presente em 79,3%
+// das fichas, ocupa duas linhas do cartão para dizer "manhã e tarde". São só
+// SETE valores distintos em toda a base, então a tradução para etiquetas curtas
+// cabe numa tabela escrita à mão, sem heurística.
+//
+// A chave é a string crua do cadastro, com espaços normalizados. O que não
+// estiver aqui cai no texto original — uma competência futura que traga um
+// turno novo perde as etiquetas, não a informação.
+const TURNOS = {
+  'ATENDIMENTOS NOS TURNOS DA MANHA E A TARDE':     ['Manhã', 'Tarde'],
+  'ATENDIMENTO NOS TURNOS DA MANHA, TARDE E NOITE': ['Manhã', 'Tarde', 'Noite'],
+  'ATENDIMENTO SOMENTE PELA MANHA':                 ['Manhã'],
+  'ATENDIMENTO SOMENTE A TARDE':                    ['Tarde'],
+  'ATENDIMENTO SOMENTE A NOITE':                    ['Noite'],
+  'ATENDIMENTO COM TURNOS INTERMITENTES':           ['Turnos intermitentes'],
+  'ATENDIMENTO CONTINUO DE 24 HORAS/DIA (PLANTAO:INCLUI SABADOS, DOMINGOS E FERIADOS)':
+                                                    ['24 h, todos os dias']
+};
+function preencheTurno(bruto){
+  const dd = g('cTurno');
+  dd.textContent = '';
+  const chave = String(bruto || '').replace(/\s+/g, ' ').trim().toUpperCase();
+  if(!chave){
+    const s = document.createElement('span');
+    s.className = 'semdado'; s.textContent = 'Não informado';
+    dd.appendChild(s); return;
+  }
+  const etiquetas = TURNOS[chave];
+  if(!etiquetas){ dd.textContent = cap(bruto); return; }
+  const cx = document.createElement('div');
+  cx.className = 'servs';
+  for(const e of etiquetas){
+    const s = document.createElement('span');
+    s.className = 'serv' + (e.indexOf('24 h') === 0 ? ' plantao' : '');
+    s.textContent = e;
+    cx.appendChild(s);
+  }
+  dd.appendChild(cx);
+}
+// ---- telefone --------------------------------------------------------------
+// O número é exibido exatamente como o cadastro traz — "32351426",
+// "68-32321426", "6832351188/ 1366", "(68) 3548 1145 /1415" — sem reformatar.
+// O campo é texto livre no CNES e o mapa não corrige dado.
+//
+// Sem link de discagem, por decisão: o azul de link não alcança 4,5:1 sobre a
+// ficha, e escurecê-lo só para o telefone criaria um segundo azul no projeto.
+function preencheTelefone(bruto){
+  const dd = g('cTel');
+  dd.textContent = '';
+  const txt = String(bruto || '').trim();
+  if(txt){ dd.textContent = txt; return; }
+  const s = document.createElement('span');
+  s.className = 'semdado'; s.textContent = 'Sem telefone cadastrado';
+  dd.appendChild(s);
+}
 function cap(s){
   return String(s).toLowerCase()
     .replace(/(^|[\s\/(-])([a-zà-ú])/g,(m,a,b)=>a+b.toUpperCase())
@@ -1308,8 +1399,8 @@ function mostra(i){
   g('cBairro').textContent = cap(D.bairros[bairro[i]]) || '—';
   g('cMun').textContent = cap(D.muns[mun[i]]) + '/' + D.ufs[D.munUF[mun[i]]];
   g('cCep').textContent = (cep[i] && cep[i].length===8) ? cep[i].slice(0,5)+'-'+cep[i].slice(5) : (cep[i]||'—');
-  g('cTel').textContent = tel[i] || '—';
-  g('cTurno').textContent = turno[i]>=0 ? cap(D.turnos[turno[i]]) : '—';
+  preencheTelefone(tel[i]);
+  preencheTurno(turno[i]>=0 ? D.turnos[turno[i]] : '');
   g('cCnes').textContent = cnes[i];
   reportIdx = i;
   g('fReport').style.display = 'none';
