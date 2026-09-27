@@ -987,8 +987,9 @@ function desenhaTiles(){
     // Em movimento não se pede tile novo. Do país até a escala de 100 m são
     // onze degraus de nível, e pedir o lote de cada degrau atravessado enfileira
     // centenas de imagens que ninguém chega a ver — a 850 ms de mediana, medido,
-    // é isso que faz a aproximação parecer que empacou. O nível de destino é
-    // pedido quando o gesto termina; durante ele, vale o que já está em memória.
+    // é isso que faz a aproximação parecer que empacou. Durante o gesto vale o
+    // que já está em memória; o lote do destino é pedido em paralelo, logo no
+    // começo do gesto, por antecipaTiles.
     const im = animando ? cacheTiles.get(tz+'/'+tx+'/'+ty) : pegaTile(tz,tx,ty);
     if(im && im.complete && im.naturalWidth)
       ctx.drawImage(im, tx*lado+ox, ty*lado+oy, lado+0.5, lado+0.5);
@@ -1037,6 +1038,42 @@ function reserva(tz, tx, ty, lado){
     if(im && im.complete && im.naturalWidth)
       ctx.drawImage(im, dx+i*meio, dy+j*meio, meio+0.5, meio+0.5);
   }
+}
+// ---- antecipa o lote do destino --------------------------------------------
+// Pedir só no fim do gesto deixava a carta borrada pelo tempo da animação MAIS
+// a latência da rede. Medido: 225 ms de animação e ~430 ms por tile no nível 16
+// (6 pedidos, 2.564 ms). E o passo de roda menor multiplicou por quatro o número
+// de paradas, então essa espera passou a aparecer quatro vezes mais — que é o
+// que se sente como dificuldade de aproximar lá embaixo. Não é CPU: na mesma
+// descida de 40 tiques o navegador não registrou uma única tarefa longa, e o
+// canvas custou 4,1 ms em 25 quadros.
+//
+// O destino já é conhecido quando o gesto começa: zAlvo e o ponto onde a âncora
+// vai parar bastam para calcular o lote. Pedindo ali, a rede corre POR BAIXO da
+// animação em vez de depois dela.
+//
+// A espera curta antes de pedir é o que preserva a decisão anterior. Girando a
+// roda, cada tique chama alvoZoom; sem ela, o lote de cada nível atravessado
+// seria pedido outra vez — as centenas de imagens que ninguém chega a ver. Com
+// ela, uma rajada de tiques pede só o lote do lugar onde a roda parou.
+const ESPERA_ANTECIPA = 70;
+let timerAntecipa = 0;
+function antecipaTiles(){
+  clearTimeout(timerAntecipa);
+  timerAntecipa = setTimeout(pedeDestino, ESPERA_ANTECIPA);
+}
+// Mesmo recorte de desenhaTiles, mas no enquadramento de DESTINO: ao fim da
+// animação z é zAlvo e a âncora está em telaXf/telaYf, o que dá o ox/oy futuro.
+function pedeDestino(){
+  const nz = zAlvo;
+  if(!(nz > 0) || !W || !H) return;
+  const dox = telaXf - ancX*nz, doy = telaYf - ancY*nz;
+  const tz = Math.max(0, Math.min(MAXZ, Math.round(Math.log2(nz/256))));
+  const n = Math.pow(2, tz), lado = nz/n;
+  const x0 = Math.max(0, Math.floor((-dox)/lado)), x1 = Math.min(n-1, Math.floor((W-dox)/lado));
+  const y0 = Math.max(0, Math.floor((-doy)/lado)), y1 = Math.min(n-1, Math.floor((H-doy)/lado));
+  if((x1-x0+1)*(y1-y0+1) > 400) return;
+  for(let tx=x0; tx<=x1; tx++) for(let ty=y0; ty<=y1; ty++) pegaTile(tz, tx, ty);
 }
 
 // ---- desenho ---------------------------------------------------------------
@@ -2090,6 +2127,7 @@ function alvoZoom(nz, tx, ty, txFim, tyFim){
   zAlvo = alvo;
   zIni = z; tIni = performance.now();       // reinicia a curva a partir de onde está
   durZoom = duracaoDe(zIni, zAlvo, Math.hypot(telaXf - telaXi, telaYf - telaYi));
+  antecipaTiles();
   animando = true; ligaLoop();
 }
 // A curva é função do TEMPO, não do número de quadros: antes, um navegador
