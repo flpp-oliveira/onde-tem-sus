@@ -175,6 +175,22 @@ canvas.arrastando{cursor:grabbing}
 .escala i{display:block;height:5px;border-left:1px solid var(--ink2);
   border-right:1px solid var(--ink2);border-bottom:1px solid var(--ink2)}
 
+/* ---------- rótulo do estado sob o ponteiro ---------- */
+/* pointer-events:none é essencial: o rótulo segue o cursor, e sem isto ele
+   ficaria por baixo do próprio ponteiro roubando os eventos do canvas —
+   o mapa pararia de responder exatamente onde o usuário está mirando */
+.rotuloUF{
+  position:absolute;pointer-events:none;z-index:30;
+  background:var(--surface);border:1px solid var(--border);border-radius:6px;
+  padding:7px 10px;font-size:12px;line-height:1.45;color:var(--ink2);
+  box-shadow:0 3px 12px rgba(0,0,0,.16);white-space:nowrap;
+}
+.rotuloUF[hidden]{display:none}
+.rotuloUF b{display:block;font-size:12.5px;font-weight:650;color:var(--ink);margin-bottom:3px}
+.rotuloUF span{display:flex;align-items:center;gap:6px;font-variant-numeric:tabular-nums}
+.rotuloUF i{width:7px;height:7px;border-radius:2px;flex:none}
+.rotuloUF em{display:block;margin-top:4px;font-style:normal;font-size:11px;color:var(--muted)}
+
 /* ---------- ficha ---------- */
 .card{
   position:absolute;left:12px;top:12px;width:322px;max-height:calc(100% - 24px);
@@ -424,6 +440,10 @@ dd .semdado{color:var(--muted)}
   </div>
   <div class="escala"><i id="escBarra" style="width:60px"></i><span id="escTxt">—</span></div>
   <div class="credito" id="credito">IBGE · CNES/DATASUS</div>
+  <!-- rótulo do estado sob o ponteiro. aria-hidden porque é eco do que o mouse
+       aponta: quem não usa mouse não tem como produzi-lo, e o painel já diz os
+       mesmos números do recorte. -->
+  <div class="rotuloUF" id="rotuloUF" aria-hidden="true" hidden></div>
   <!-- tabindex="-1" para receber foco por script ao abrir: sem isso, quem usa
        leitor de tela não é avisado de que a ficha apareceu -->
   <div class="card" id="card" role="dialog" aria-label="Ficha do estabelecimento" tabindex="-1">
@@ -595,6 +615,194 @@ function projetaAneis(fs){
 }
 const aneisFinos   = projetaAneis(D.malha || []);
 const aneisGrossos = projetaAneis(D.malhaGrossa || []);
+// ---- estados como alvo de clique -------------------------------------------
+// projetaAneis achata os anéis de todas as UFs numa lista só e perde a sigla —
+// serve ao desenho, que trata o país como uma massa. Aqui a malha é relida
+// AGRUPADA por UF, que é o que permite perguntar "sobre qual estado está o
+// ponteiro". Nada é baixado a mais: é a mesma D.malha que já vem na página.
+// Âncora do nome de uma área: centroide de ÁREA do maior anel, não a média dos
+// vértices — num contorno recortado a média puxa o nome para onde há mais
+// pontos, não para o meio da massa. E não a média dos estabelecimentos: a
+// coordenada do CNES é justamente o que este mapa não toma como verdade
+// geográfica.
+//
+// 'peso' é a raiz da área, ou seja um lado equivalente em graus. Multiplicado
+// por z vira tamanho na tela, e é o que decide quais nomes cabem.
+function ancoraDeAneis(aneis){
+  let melhor = null, maiorA = -1;
+  for(const a of aneis){
+    let s = 0;
+    for(let k=0, j=a.length-1; k<a.length; j=k++)
+      s += a[j][0]*a[k][1] - a[k][0]*a[j][1];
+    if(Math.abs(s) > maiorA){ maiorA = Math.abs(s); melhor = a; }
+  }
+  let cx=0, cy=0, s2=0;
+  for(let k=0, j=melhor.length-1; k<melhor.length; j=k++){
+    const f = melhor[j][0]*melhor[k][1] - melhor[k][0]*melhor[j][1];
+    s2 += f; cx += (melhor[j][0]+melhor[k][0])*f; cy += (melhor[j][1]+melhor[k][1])*f;
+  }
+  if(Math.abs(s2) > 1e-12){ cx /= 3*s2; cy /= 3*s2; }
+  else {  // anel degenerado: cai na média dos vértices
+    cx = melhor.reduce((t,p)=>t+p[0],0)/melhor.length;
+    cy = melhor.reduce((t,p)=>t+p[1],0)/melhor.length;
+  }
+  return {cx, cy, peso:Math.sqrt(maiorA/2)};
+}
+const ufsGeo = (D.malha || []).map(f => {
+  const aneis = f.a.map(anel => anel.map(p => [(p[0]+180)/360, merc(p[1])]));
+  let x0=1,x1=0,y0=1,y1=0;
+  for(const a of aneis) for(const [x,y] of a){
+    if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y;
+  }
+  const an = ancoraDeAneis(aneis);
+  return {sigla:f.uf, i:D.ufs.indexOf(f.uf), aneis, x0, x1, y0, y1,
+          cx:an.cx, cy:an.cy, peso:an.peso};
+}).filter(u => u.i >= 0);
+// Nomes por extenso: a sigla basta no seletor, mas num rótulo flutuante sobre o
+// mapa "Acre" se lê sem decodificar. São 27 entradas, ~400 bytes.
+const NOME_UF = {AC:'Acre',AL:'Alagoas',AP:'Amapá',AM:'Amazonas',BA:'Bahia',
+  CE:'Ceará',DF:'Distrito Federal',ES:'Espírito Santo',GO:'Goiás',MA:'Maranhão',
+  MT:'Mato Grosso',MS:'Mato Grosso do Sul',MG:'Minas Gerais',PA:'Pará',
+  PB:'Paraíba',PR:'Paraná',PE:'Pernambuco',PI:'Piauí',RJ:'Rio de Janeiro',
+  RN:'Rio Grande do Norte',RS:'Rio Grande do Sul',RO:'Rondônia',RR:'Roraima',
+  SC:'Santa Catarina',SP:'São Paulo',SE:'Sergipe',TO:'Tocantins'};
+// Lançamento de raio, em coordenadas de MUNDO — não na tela. Assim o teste não
+// depende da transformação corrente do canvas nem do dpr, que é onde esse tipo
+// de código costuma errar de forma silenciosa. Par/ímpar sobre todos os anéis
+// da UF resolve ilhas e enclaves sem tratamento especial.
+function pontoEmAneis(aneis, wx, wy){
+  let dentro = false;
+  for(const a of aneis){
+    for(let i=0, j=a.length-1; i<a.length; j=i++){
+      const yi=a[i][1], yj=a[j][1];
+      if((yi>wy) !== (yj>wy)){
+        const xi=a[i][0], xj=a[j][0];
+        if(wx < xi + (xj-xi)*(wy-yi)/(yj-yi)) dentro = !dentro;
+      }
+    }
+  }
+  return dentro;
+}
+function pontoEmUF(u, wx, wy){
+  if(wx < u.x0 || wx > u.x1 || wy < u.y0 || wy > u.y1) return false;
+  return pontoEmAneis(u.aneis, wx, wy);
+}
+// Onde pôr o nome de uma área que está parcialmente na tela.
+//
+// O centroide resolve o caso comum, mas falha justamente onde mais importa:
+// com Sergipe enquadrado, a Bahia ocupa metade da tela e o centroide dela está
+// a centenas de quilômetros fora do campo — o vizinho maior ficava sem nome, e
+// era o que o usuário mais precisava enxergar para poder clicar.
+//
+// Quando o centroide não serve, o nome vai para o meio do pedaço VISÍVEL. Como
+// esse ponto pode cair fora de um contorno côncavo, ele é verificado, e em
+// caso de falha varre-se uma grade curta dentro do pedaço. Se nada estiver
+// dentro, o nome não é desenhado — melhor faltar do que rotular o vizinho.
+function ancoraVisivel(area){
+  const M = 46;                                   // margem para o texto caber
+  const sx0 = Math.max(M, area.x0*z + ox), sx1 = Math.min(W - M, area.x1*z + ox);
+  const sy0 = Math.max(M, area.y0*z + oy), sy1 = Math.min(H - M, area.y1*z + oy);
+  if(sx1 <= sx0 || sy1 <= sy0) return null;       // nada visível
+  const cx = area.cx*z + ox, cy = area.cy*z + oy;
+  if(cx >= sx0 && cx <= sx1 && cy >= sy0 && cy <= sy1) return {x:cx, y:cy};
+  for(let i=1;i<=3;i++) for(let j=1;j<=3;j++){
+    const x = sx0 + (sx1-sx0)*i/4, y = sy0 + (sy1-sy0)*j/4;
+    if(pontoEmAneis(area.aneis, (x-ox)/z, (y-oy)/z)) return {x, y};
+  }
+  return null;
+}
+function ufSob(mx, my){
+  const wx = (mx-ox)/z, wy = (my-oy)/z;
+  for(const u of ufsGeo) if(pontoEmUF(u, wx, wy)) return u;
+  return null;
+}
+// O estado só é alvo enquanto a visão nacional é a leitura dominante. Passado
+// isso o usuário já está DENTRO de um estado, e clicar no fundo para selecionar
+// o estado inteiro afastaria o mapa em vez de aproximá-lo.
+function modoUF(){ return !ufFiltrada && (1 - mistura(z, ZOOM_CONTEXTO)) >= 0.5; }
+
+// ---- municípios: malha buscada sob demanda ---------------------------------
+// As divisas municipais NÃO vêm na página. São 5.570 polígonos, 2,77 MB — mais
+// da metade do que o index.html inteiro pesa hoje, e 26 dos 27 estados seriam
+// baixados à toa. O arquivo do estado é buscado quando o estado é escolhido:
+// 117 KB comprimidos no pior caso (Minas, 853 municípios), ~27 KB no mediano,
+// e depois fica no cache do navegador e na borda da Cloudflare.
+//
+// Se a busca falhar, nada quebra: ficam sem divisa e sem clique, e o estado
+// continua navegável pelas bolhas e pelo seletor, como era antes.
+let malhaMun = null;          // polígonos do estado carregado, já projetados
+let malhaMunUF = -1;          // qual estado está em malhaMun
+let malhaMunPedida = -1;      // qual estado está em trânsito
+let caminhoDivisas = null;    // Path2D de todas as divisas, em coordenadas de mundo
+let munRealce = -1;           // índice do município sob o ponteiro, ou -1
+function carregaMalhaMun(u){
+  if(u < 0){ malhaMun = null; malhaMunUF = malhaMunPedida = -1; caminhoDivisas = null; return; }
+  if(malhaMunUF === u || malhaMunPedida === u) return;
+  malhaMunPedida = u;
+  fetch('malhas/' + D.ufs[u] + '.json')
+    .then(r => r.ok ? r.json() : Promise.reject(r.status))
+    .then(lista => {
+      // entre o pedido e a resposta o usuário pode ter trocado de estado; sem
+      // esta guarda, a malha antiga chegaria depois e sobrescreveria a nova
+      if(malhaMunPedida !== u) return;
+      malhaMun = lista.map(m => {
+        const aneis = m.a.map(a => a.map(p => [(p[0]+180)/360, merc(p[1])]));
+        let x0=1,x1=0,y0=1,y1=0;
+        for(const a of aneis) for(const [x,y] of a){
+          if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y;
+        }
+        const an = ancoraDeAneis(aneis);
+        return {i:m.i, aneis, x0, x1, y0, y1, cx:an.cx, cy:an.cy, peso:an.peso};
+      });
+      malhaMunUF = u; malhaMunPedida = -1; caminhoDivisas = null;
+      agendaRedraw();
+    })
+    .catch(() => { malhaMunPedida = -1; });
+}
+function munSob(mx, my){
+  if(!malhaMun) return null;
+  const wx = (mx-ox)/z, wy = (my-oy)/z;
+  for(const m of malhaMun){
+    if(wx < m.x0 || wx > m.x1 || wy < m.y0 || wy > m.y1) continue;
+    let dentro = false;
+    for(const a of m.aneis){
+      for(let i=0, j=a.length-1; i<a.length; j=i++){
+        const yi=a[i][1], yj=a[j][1];
+        if((yi>wy) !== (yj>wy)){
+          const xi=a[i][0], xj=a[j][0];
+          if(wx < xi + (xj-xi)*(wy-yi)/(yj-yi)) dentro = !dentro;
+        }
+      }
+    }
+    if(dentro) return m;
+  }
+  return null;
+}
+// O município continua sendo alvo DEPOIS de escolhido um — antes não era, e
+// isso prendia o usuário: para ver a cidade vizinha era preciso voltar ao
+// seletor. Com os nomes desenhados ao lado, pular de uma para outra é o gesto
+// natural, e recusá-lo seria desenhar um convite que não funciona.
+//
+// O teto de ZOOM_PINOS é o que preserva a ficha: na escala de rua quem manda
+// são os estabelecimentos, e um clique ali tem de abrir o cartão, não trocar
+// o recorte por baixo do usuário.
+function modoMun(){ return ufFiltrada && malhaMun !== null && z < ZOOM_PINOS; }
+// Escolhida a cidade, os estabelecimentos dela viram pinos na hora, em
+// qualquer escala — não só depois de três aproximações. A agregação existe
+// porque 108.558 marcas não cabem numa tela, mas dentro de um município o
+// problema não existe: o maior do país é São Paulo, com 1.164, e a mediana é
+// 11. O mapa já desenha até 635 pinos na escala de rua sem agregação nenhuma.
+function modoPinos(){ return munFiltrada || z >= ZOOM_PINOS; }
+function pinoSob(mx, my){
+  let melhor = -1, dist = 18*18;
+  for(let i=0;i<N;i++){
+    if(!vis[i]) continue;
+    const dx = px[i]*z+ox-mx; if(dx>18||dx<-18) continue;
+    const dy = py[i]*z+oy-my; if(dy>18||dy<-18) continue;
+    const d = dx*dx+dy*dy; if(d < dist){ dist = d; melhor = i; }
+  }
+  return melhor;
+}
 // A malha fina entra já na visão de ~200 km (z 15.000). Medido: escala 200 km
 // corresponde a z 18.000; 100 km a 38.700; 50 km a 83.600.
 const ZOOM_MALHA_FINA = 15000;
@@ -617,14 +825,46 @@ let W=0, H=0, dpr=1, z=1, ox=0, oy=0;
 const vis = new Uint8Array(N).fill(1);
 let nVis = N, sel = -1, grupoAtual = null, reportIdx = -1;
 let resumoUF = [];
+// totais por UF sem o recorte territorial, para o rótulo do estado sob o cursor
+let resumoUFLivre = [];
+let ufRealce = -1;                      // índice da UF sob o ponteiro, ou -1
+// Com um estado (ou município) escolhido, a camada de bolhas por UF perde a
+// razão de existir: sobra UMA bolha com o total, que é exatamente o número que
+// o painel já mostra em "Recorte atual". A grade assume no lugar dela e reparte
+// o estado, que é o que faz o mapa continuar se desenhando à medida que se
+// desce. Também é o que permite o clique seguinte mirar num grupo menor.
+let ufFiltrada = false, munFiltrada = false;
+// qual UF e qual município estão SELECIONADOS — diferente do que está sob o
+// ponteiro. O realce do hover é passageiro; a seleção fica desenhada.
+let ufSel = -1, munSel = -1, bairroSel = -1;
+// totais por município sem o recorte de município/bairro, para o rótulo.
+// Vetores tipados e não objetos: são 5.570 posições, refeitas a cada filtro.
+let munLivreN = null, munLivreP = null;
 // grade de aglutinação reaproveitada entre quadros, para não alocar por desenho
-let gradeCols = 0, gradeRows = 0, gN, gX, gY, gP;
+let gradeCols = 0, gradeRows = 0, gN, gX, gY, gP, gX0, gY0, gX1, gY1;
+// Bolhas efetivamente desenhadas no último quadro: centro e raio na tela, e a
+// caixa dos pontos que cada uma representa, em coordenadas de mundo. É o que
+// permite ao clique mirar no GRUPO em vez de multiplicar o zoom às cegas.
+// Só entram aqui as bolhas com opacidade dominante (>= 0,5); no meio de uma
+// transição de modo há dois conjuntos na tela, e sem esse corte o clique
+// poderia acertar o que já está quase invisível.
+let bolhasNaTela = [];
 // Lado da célula de aglutinação. Grande nas escalas intermediárias — poucas
 // bolhas, mapa visível — e diminuindo à medida que se aproxima, até os pinos.
 function celulaAtual(){
   return z < 3e5 ? 130 : z < 6e5 ? 100 : z < 1e6 ? 76 : 56;
 }
 const ZOOM_PINOS = 1.2e6;               // acima disto, cada estabelecimento é um pino
+// Largura da faixa de transição entre dois modos de desenho, como fator de
+// zoom: a troca acontece entre T e T*1,7, não num ponto. Em log, 1,7 é pouco
+// menos de um passo de roda (que vale ~1,9x), então a dissolução cabe dentro
+// de um gesto — não se arrasta por vários, nem passa despercebida.
+const BANDA_TROCA = 1.7;
+function mistura(zz, T){
+  if(zz <= T) return 0;
+  if(zz >= T*BANDA_TROCA) return 1;
+  return Math.log(zz/T) / Math.log(BANDA_TROCA);
+}
 const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 
 // ---- camada de contexto (OpenStreetMap) ------------------------------------
@@ -654,12 +894,25 @@ function ligaLoop(){
 // O Map preserva a ordem de inserção, então reinserir no acesso põe o item no
 // fim e o descarte pela primeira chave vira o menos usado recentemente.
 const MAX_TILES = 600;
+// Recuo entre tentativas de um tile que falhou, em ms. Progressivo, e acaba:
+// o servidor é voluntário e insistir sem parar num que recusa é o caminho de
+// ser bloqueado de vez.
+const ESPERA_TILE = [900, 2800, 7000];
+const falhasTile = new Map();
 function pegaTile(tz, tx, ty){
   const k = tz+'/'+tx+'/'+ty;
   let im = cacheTiles.get(k);
   if(im !== undefined){
     cacheTiles.delete(k); cacheTiles.set(k, im);   // renova a posição
     return im;
+  }
+  // tile que falhou: espera o recuo antes de pedir de novo, e desiste depois
+  // de três tentativas — repetir sem limite castigaria um servidor que já
+  // está recusando, e é o que o transformaria numa recusa permanente
+  const f = falhasTile.get(k);
+  if(f){
+    if(f.n > ESPERA_TILE.length) return null;
+    if(performance.now() - f.t < ESPERA_TILE[f.n-1]) return null;
   }
   if(cacheTiles.size >= MAX_TILES){
     const velho = cacheTiles.keys().next().value;
@@ -668,9 +921,25 @@ function pegaTile(tz, tx, ty){
     cacheTiles.delete(velho);
   }
   im = new Image();
-  im.crossOrigin = 'anonymous';   // o servidor libera CORS; sem isso o canvas fica
-  im.onload = agendaRedraw;       // contaminado e não se pode mais ler pixel dele
-  im.onerror = () => cacheTiles.set(k, null);
+  im.crossOrigin = 'anonymous';   // o servidor libera CORS; sem isso o canvas
+                                  // fica contaminado e não se pode ler pixel
+  im.onload = () => { falhasTile.delete(k); agendaRedraw(); };
+  im.onerror = () => {
+    // NÃO guarda o buraco no cache. Era assim antes — `cacheTiles.set(k, null)`
+    // — e como a checagem no topo é `!== undefined`, o null voltava para
+    // sempre: um tile que falhasse uma vez nunca mais era pedido, e a área
+    // dele ficava branca até recarregar a página. Como o servidor é voluntário
+    // e responde em 339 ms de mediana (medido), um punhado de recusas em rajada
+    // — que é o que acontece ao clicar por vários estados seguidos — deixava
+    // a tela inteira em branco de forma permanente.
+    cacheTiles.delete(k);
+    const g = falhasTile.get(k);
+    const n = g ? g.n + 1 : 1;
+    falhasTile.set(k, {t: performance.now(), n});
+    // o recuo precisa de quem o acorde: sem este agendamento nada redesenha
+    // até o usuário mexer no mapa, e a nova tentativa nunca aconteceria
+    if(n <= ESPERA_TILE.length) setTimeout(agendaRedraw, ESPERA_TILE[n-1] + 60);
+  };
   // estilo Humanitarian (HOT), hospedado pela OpenStreetMap France; subdominio
   // a/b/c so pra paralelizar download (mesmo servidor, DNS diferente)
   const sub = 'abc'[(tx + ty) % 3];
@@ -798,7 +1067,249 @@ function bolha(x, y, r, n, pub, rotulo){
 // Só as bolhas. Os nomes dos estados vêm da própria carta do OpenStreetMap, que
 // já os compõe e posiciona — desenhar os nossos por cima era duplicar um rótulo
 // que já estava lá, em dois estilos diferentes.
-function desenhaBolhasUF(){
+// ---- divisas municipais ----------------------------------------------------
+// Montadas uma vez em coordenadas de mundo e transformadas pelo navegador —
+// mesma técnica do traçado do país, pelo mesmo motivo: montar custa caro em
+// JavaScript, transformar é nativo.
+//
+// Saem durante a animação de zoom. O estado mais pesado traz 18.600 vértices,
+// e o código já troca a malha fina do país (43.384) pela grossa (6.557) em
+// movimento justamente porque rasterizar custa por quadro. Desenhar as divisas
+// durante o gesto desfaria essa economia — e em movimento o olho segue a
+// aproximação, não o contorno das cidades.
+function desenhaDivisasMun(){
+  if(!malhaMun || animando) return;
+  if(!caminhoDivisas){
+    const p = new Path2D();
+    for(const m of malhaMun) for(const a of m.aneis){
+      for(let i=0;i<a.length;i++) i ? p.lineTo(a[i][0], a[i][1]) : p.moveTo(a[i][0], a[i][1]);
+      p.closePath();
+    }
+    caminhoDivisas = p;
+  }
+  const p = new Path2D();
+  p.addPath(caminhoDivisas, new DOMMatrix([z,0,0,z,ox,oy]));
+  ctx.save();
+  // mais fraca que a divisa estadual: é subdivisão dela, não concorrente
+  ctx.strokeStyle = css('--malha'); ctx.globalAlpha = 0.55; ctx.lineWidth = 0.7;
+  ctx.stroke(p);
+  ctx.restore();
+}
+// ---- área selecionada ------------------------------------------------------
+// O contorno da seleção FICA desenhado. Antes ele só existia sob o ponteiro, e
+// no instante do clique desaparecia: o mapa enquadrava o lugar sem dizer onde
+// ele começa e termina. Num recorte por município isso importa — a ficha de um
+// posto perto da divisa não diz de que lado da linha ele está.
+//
+// Além do traço, o que está FORA recebe um véu claro. O recorte já esconde os
+// pontos de fora, mas não a carta: sem o véu, a mancha de ruas do vizinho pesa
+// tanto quanto a do lugar escolhido. O véu é um preenchimento só, com regra
+// par/ímpar — a tela inteira mais o polígono, e o polígono vira o furo.
+//
+// As cores não acompanham o tema. Os tiles do OpenStreetMap são sempre a carta
+// clara, mesmo no tema escuro, então as marcas são ajustadas à superfície que
+// existe de fato — mesmo motivo pelo qual o mapa nasce claro.
+const caminhoSel = {chave:'', path:null};
+function aneisSelecionados(){
+  if(munSel >= 0 && malhaMun){
+    const m = malhaMun.find(x => x.i === munSel);
+    if(m) return ['m'+munSel, m.aneis];
+  }
+  if(ufSel >= 0){
+    const u = ufsGeo.find(x => x.i === ufSel);
+    if(u) return ['u'+ufSel, u.aneis];
+  }
+  return null;
+}
+function desenhaSelecao(){
+  const sel = aneisSelecionados();
+  if(!sel) return;
+  const [chave, aneis] = sel;
+  if(caminhoSel.chave !== chave){
+    const p = new Path2D();
+    for(const a of aneis){
+      for(let i=0;i<a.length;i++) i ? p.lineTo(a[i][0], a[i][1]) : p.moveTo(a[i][0], a[i][1]);
+      p.closePath();
+    }
+    caminhoSel.chave = chave; caminhoSel.path = p;
+  }
+  const area = new Path2D();
+  area.addPath(caminhoSel.path, new DOMMatrix([z,0,0,z,ox,oy]));
+  // véu do lado de fora
+  const fora = new Path2D();
+  fora.rect(0, 0, W, H);
+  fora.addPath(area);
+  ctx.save();
+  ctx.fillStyle = 'rgba(250,250,247,.46)';
+  ctx.fill(fora, 'evenodd');
+  ctx.restore();
+  // contorno pontilhado. Cinza-escuro, e não o vermelho do Google: aqui o
+  // laranja já significa "privada conveniada", e vermelho ao lado de laranja
+  // é o par que as daltonias mais comuns confundem. A linha da seleção não
+  // pode ser lida como dado.
+  ctx.save();
+  ctx.setLineDash([2, 4.5]);
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.lineWidth = 3.4; ctx.stroke(area);
+  ctx.strokeStyle = 'rgba(38,34,28,.85)';    ctx.lineWidth = 1.8; ctx.stroke(area);
+  ctx.restore();
+}
+// ---- nomes dos municípios --------------------------------------------------
+// São até 853 num estado, e não cabem. A regra é: só entra quem tem tamanho na
+// tela para carregar o nome, e o maior escolhe primeiro. Quem não couber sem
+// encostar num nome já posto fica de fora — e reaparece sozinho ao aproximar,
+// porque aí sobra espaço.
+//
+// A largura do texto é medida uma vez por município e guardada: measureText
+// num laço de 853 por quadro é justamente o tipo de custo que não se vê no
+// código e aparece no dedo.
+//
+// Há sobreposição com a carta do OpenStreetMap, que também rotula cidades em
+// algumas escalas. Aceita conscientemente: o rótulo do OSM marca a mancha
+// urbana e não é clicável; este marca o MUNICÍPIO inteiro, que é a unidade do
+// recorte, e é por ele que se troca de cidade.
+const CORPO_ROTULO = 11.5;
+const MAX_ROTULOS = 70;
+// Posiciona uma lista de candidatos {texto, larg, x, y, peso} evitando
+// sobreposição: o maior escolhe primeiro, e quem encostaria num nome já posto
+// fica de fora. Serve aos dois níveis — estados e municípios — porque a regra
+// é a mesma; o que muda é só o estilo do traço.
+function poeRotulos(cand, alturaMeia, pinta){
+  cand.sort((a,b) => b.peso - a.peso);
+  const postos = [];
+  let n = 0;
+  for(const c of cand){
+    if(n >= MAX_ROTULOS) break;
+    const hw = c.larg/2 + 3;
+    let bate = false;
+    for(const p of postos){
+      if(Math.abs(p.x - c.x) < hw + p.hw && Math.abs(p.y - c.y) < alturaMeia + p.hh){ bate = true; break; }
+    }
+    if(bate) continue;
+    postos.push({x:c.x, y:c.y, hw, hh:alturaMeia});
+    n++;
+    pinta(c);
+  }
+  return n;
+}
+// ---- nomes dos outros estados ----------------------------------------------
+// Com um estado escolhido, os vizinhos ficavam mudos: dava para clicar neles,
+// mas nada na tela dizia isso. O nome é o que torna o alvo visível — é ele que
+// transforma "há mais mapa em volta" em "posso ir para lá".
+//
+// Só os OUTROS. O escolhido já está contornado, e dentro dele estão os nomes
+// dos municípios; repetir a sigla do estado por cima disputaria com eles.
+//
+// Caixa alta e espaçada, contra a caixa normal dos municípios: são duas
+// hierarquias diferentes e precisam se distinguir sem depender da cor.
+const CORPO_ROTULO_UF = 12;
+function desenhaRotulosUF(){
+  if(!ufFiltrada || animando) return;
+  ctx.save();
+  ctx.font = '600 ' + CORPO_ROTULO_UF + 'px system-ui,-apple-system,sans-serif';
+  try{ ctx.letterSpacing = '1.2px'; }catch(_){}    // ignorado onde não existe
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const cand = [];
+  for(const u of ufsGeo){
+    if(u.i === ufSel) continue;
+    if(u.peso*z < 46) continue;
+    const a = ancoraVisivel(u);
+    if(!a) continue;
+    if(u.larg === undefined){
+      u.texto = (NOME_UF[u.sigla] || u.sigla).toUpperCase();
+      u.larg = ctx.measureText(u.texto).width;
+    }
+    cand.push({texto:u.texto, larg:u.larg, x:a.x, y:a.y, peso:u.peso, i:u.i});
+  }
+  poeRotulos(cand, CORPO_ROTULO_UF*0.8, c => {
+    ctx.lineWidth = 3.2; ctx.lineJoin = 'round';
+    ctx.strokeStyle = 'rgba(255,255,255,.92)';
+    ctx.strokeText(c.texto, c.x, c.y);
+    ctx.fillStyle = c.i === ufRealce ? 'rgba(20,18,14,.95)' : 'rgba(92,86,74,.85)';
+    ctx.fillText(c.texto, c.x, c.y);
+  });
+  try{ ctx.letterSpacing = '0px'; }catch(_){}
+  ctx.restore();
+}
+function desenhaRotulosMun(){
+  if(!malhaMun || animando) return;
+  ctx.save();
+  ctx.font = '500 ' + CORPO_ROTULO + 'px system-ui,-apple-system,sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const cand = [];
+  for(const m of malhaMun){
+    if(m.i < 0) continue;
+    if(m.peso*z < 34) continue;                    // pequeno demais nesta escala
+    // mesma âncora dos estados: um município grande enquadrado pela sede —
+    // Altamira é o caso — também tem o centroide fora do campo
+    const a = ancoraVisivel(m);
+    if(!a) continue;
+    if(m.larg === undefined){
+      m.texto = cap(D.muns[m.i]);
+      m.larg = ctx.measureText(m.texto).width;
+    }
+    cand.push({texto:m.texto, larg:m.larg, x:a.x, y:a.y, peso:m.peso, i:m.i});
+  }
+  poeRotulos(cand, CORPO_ROTULO*0.72, c => {
+    const sel = c.i === munSel;
+    // auréola clara por baixo: sem ela o nome some sobre mata e sobre rio
+    ctx.lineWidth = 3; ctx.lineJoin = 'round';
+    ctx.strokeStyle = 'rgba(255,255,255,.92)';
+    ctx.strokeText(c.texto, c.x, c.y);
+    ctx.fillStyle = sel ? 'rgba(20,18,14,.95)' : 'rgba(58,54,46,.88)';
+    if(sel) ctx.font = '650 ' + CORPO_ROTULO + 'px system-ui,-apple-system,sans-serif';
+    ctx.fillText(c.texto, c.x, c.y);
+    if(sel) ctx.font = '500 ' + CORPO_ROTULO + 'px system-ui,-apple-system,sans-serif';
+  });
+  ctx.restore();
+}
+function desenhaRealceMun(){
+  const m = malhaMun && malhaMun.find(x => x.i === munRealce);
+  if(!m) return;
+  const base = new Path2D();
+  for(const a of m.aneis){
+    for(let i=0;i<a.length;i++) i ? base.lineTo(a[i][0], a[i][1]) : base.moveTo(a[i][0], a[i][1]);
+    base.closePath();
+  }
+  const p = new Path2D();
+  p.addPath(base, new DOMMatrix([z,0,0,z,ox,oy]));
+  ctx.save();
+  ctx.fillStyle = css('--pub'); ctx.globalAlpha = 0.14; ctx.fill(p);
+  ctx.restore();
+  ctx.save();
+  ctx.strokeStyle = css('--pub'); ctx.lineWidth = 1.6; ctx.lineJoin = 'round';
+  ctx.stroke(p);
+  ctx.restore();
+}
+// Realce do estado sob o ponteiro. O caminho é montado uma vez em coordenadas
+// de mundo, por UF, e a transformação fica com o navegador — mesma técnica do
+// traçado do país, pelo mesmo motivo: montar custa, transformar não.
+const caminhoUF = new Map();
+function desenhaRealceUF(){
+  const u = ufsGeo.find(x => x.i === ufRealce);
+  if(!u) return;
+  let base = caminhoUF.get(u.i);
+  if(!base){
+    base = new Path2D();
+    for(const a of u.aneis){
+      for(let i=0;i<a.length;i++) i ? base.lineTo(a[i][0], a[i][1]) : base.moveTo(a[i][0], a[i][1]);
+      base.closePath();
+    }
+    caminhoUF.set(u.i, base);
+  }
+  const p = new Path2D();
+  p.addPath(base, new DOMMatrix([z,0,0,z,ox,oy]));
+  ctx.save();
+  // tinta fraca do azul de dado: marca a área sem competir com as bolhas nem
+  // apagar a carta por baixo
+  ctx.fillStyle = css('--pub'); ctx.globalAlpha *= 0.14; ctx.fill(p);
+  ctx.restore();
+  ctx.save();
+  ctx.strokeStyle = css('--pub'); ctx.lineWidth = 1.6; ctx.lineJoin = 'round';
+  ctx.stroke(p);
+  ctx.restore();
+}
+function desenhaBolhasUF(registra){
   let maior = 1;
   for(const u of resumoUF) if(u.n > maior) maior = u.n;
   for(let i=0;i<resumoUF.length;i++){
@@ -806,7 +1317,12 @@ function desenhaBolhasUF(){
     if(!u.n) continue;
     const x = (u.sx/u.n)*z + ox, y = (u.sy/u.n)*z + oy;
     if(x < -80 || x > W+80 || y < -80 || y > H+80) continue;
-    bolha(x, y, 13 + 17*Math.sqrt(u.n/maior), u.n, u.pub, compacto(u.n));
+    const r = 13 + 17*Math.sqrt(u.n/maior);
+    bolha(x, y, r, u.n, u.pub, compacto(u.n));
+    // ufIdx amarra a bolha ao seu estado. Sem isso, uma bolha grande que
+    // transborda para o vizinho — a do DF cobre parte de Goiás — selecionaria
+    // o estado de baixo em vez do que ela representa.
+    if(registra) bolhasNaTela.push({x, y, r, ufIdx:i, x0:u.x0, y0:u.y0, x1:u.x1, y1:u.y1});
   }
 }
 // A grade é ancorada no território, não na tela. Se as células fossem fixas na
@@ -818,7 +1334,7 @@ function desenhaBolhasUF(){
 // O zoom usado para dividir é quantizado à potência de 2 mais próxima: dentro de
 // uma faixa de escala os grupos ficam parados enquanto as posições acompanham a
 // aproximação, e a redivisão acontece em degraus, não continuamente.
-function desenhaGrade(){
+function desenhaGrade(registra){
   const CELULA = celulaAtual();
   const zq = Math.pow(2, Math.round(Math.log2(z)));   // zoom quantizado
   const lado = CELULA*z/zq;                           // lado da célula, em pixels de tela
@@ -827,7 +1343,12 @@ function desenhaGrade(){
     gradeCols = cols; gradeRows = rows;
     gN = new Int32Array(cols*rows); gX = new Float64Array(cols*rows);
     gY = new Float64Array(cols*rows); gP = new Int32Array(cols*rows);
+    gX0 = new Float64Array(cols*rows); gY0 = new Float64Array(cols*rows);
+    gX1 = new Float64Array(cols*rows); gY1 = new Float64Array(cols*rows);
   } else { gN.fill(0); gX.fill(0); gY.fill(0); gP.fill(0); }
+  // a caixa inicia invertida para que o primeiro ponto a defina por inteiro;
+  // só as células com gN > 0 são lidas depois, então as demais não importam
+  if(registra){ gX0.fill(1); gY0.fill(1); gX1.fill(0); gY1.fill(0); }
   // índice da célula no território, independente da rolagem; i0/j0 só recolocam
   // essa numeração absoluta dentro do vetor que cobre a tela
   const i0 = Math.floor((-lado-ox)/lado), j0 = Math.floor((-lado-oy)/lado);
@@ -840,19 +1361,30 @@ function desenhaGrade(){
     const cj = Math.floor(py[i]*zq/CELULA) - j0; if(cj < 0 || cj >= rows) continue;
     const k = ci*rows + cj;
     gN[k]++; gX[k]+=x; gY[k]+=y; if(esfera[i]===0) gP[k]++;
+    if(registra){
+      if(px[i]<gX0[k])gX0[k]=px[i]; if(px[i]>gX1[k])gX1[k]=px[i];
+      if(py[i]<gY0[k])gY0[k]=py[i]; if(py[i]>gY1[k])gY1[k]=py[i];
+    }
     if(gN[k] > maior) maior = gN[k];
   }
   for(let k=0;k<gN.length;k++){
     const n = gN[k];
     if(!n) continue;
     const x = gX[k]/n, y = gY[k]/n;
+    let r;
     if(n === 1){
-      ctx.beginPath(); ctx.arc(x, y, 4.4, 0, 6.2832);
+      r = 4.4;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832);
       ctx.fillStyle = css(gP[k] ? '--pub' : '--conv'); ctx.fill();
       ctx.strokeStyle = css('--terra'); ctx.lineWidth = 1.5; ctx.stroke();
     } else {
-      bolha(x, y, 11 + 15*Math.sqrt(n/maior), n, gP[k], compacto(n));
+      r = 11 + 15*Math.sqrt(n/maior);
+      bolha(x, y, r, n, gP[k], compacto(n));
     }
+    // o ponto solto tem 4,4 px e é a menor marca da tela; o alvo de clique
+    // recebe um piso de 11 px, que é o mínimo confortável para o dedo
+    if(registra) bolhasNaTela.push({x, y, r:Math.max(r, 11),
+                                    x0:gX0[k], y0:gY0[k], x1:gX1[k], y1:gY1[k]});
   }
 }
 // marcador do report de localização — cor própria (nunca usada pelos pinos
@@ -877,6 +1409,9 @@ function pino(x, y, r){
   ctx.fill(); ctx.stroke();
 }
 function desenha(){
+  // o quadro sempre começa opaco: a opacidade agora varia dentro do desenho,
+  // e um retorno antecipado futuro não pode vazar alfa para o quadro seguinte
+  ctx.globalAlpha = 1;
   ctx.fillStyle = css('--mar'); ctx.fillRect(0,0,W,H);
   const pais = caminhoBrasil();
   // a terra é preenchida sempre: serve de base enquanto os tiles não chegaram e
@@ -887,16 +1422,54 @@ function desenha(){
   // já compostos e posicionados pelo OpenStreetMap.
   ctx.save(); ctx.clip(pais); desenhaTiles(); ctx.restore();
   desenhaMalha(pais);
-  const modo = z < ZOOM_CONTEXTO ? 'uf' : z < ZOOM_PINOS ? 'grade' : 'pino';
+  desenhaDivisasMun();
+  desenhaSelecao();
+  // depois da seleção e antes das marcas: o nome é do território, e as bolhas
+  // e pinos são o dado — eles passam por cima, não o contrário
+  // os vizinhos primeiro: se um nome de estado e um de município disputarem o
+  // mesmo espaço, quem está dentro do recorte é que deve prevalecer
+  desenhaRotulosUF();
+  desenhaRotulosMun();
+  // Os três modos não trocam mais de estalo. Numa faixa de zoom em torno de
+  // cada fronteira, o modo que sai e o que entra são desenhados juntos, com
+  // opacidades complementares — o olho lê uma dissolução, não um corte.
+  //
+  // O motivo é a reconciliação entre a vista e o mapa mental: a mesma cidade
+  // que era uma bolha com um número vira, num instante, dezenas de pinos, e a
+  // troca instantânea apaga a correspondência entre as duas leituras. A faixa
+  // mantém os dois desenhos coexistindo pelo tempo do gesto.
+  //
+  // As duas faixas nunca se sobrepõem — ZOOM_CONTEXTO é 15 mil e ZOOM_PINOS é
+  // 1,2 milhão —, então as três opacidades sempre somam 1.
+  const aUF    = ufFiltrada ? 0 : 1 - mistura(z, ZOOM_CONTEXTO);
+  const aPino  = munFiltrada ? 1 : mistura(z, ZOOM_PINOS);
+  const aGrade = (1 - aUF) * (1 - aPino);
   const raio = 7.5;
-  ctx.globalAlpha = 1;
   ctx.lineJoin = 'round';
-  if(modo === 'uf'){ desenhaBolhasUF(); escala(); creditoAtual(); return; }
-  if(modo === 'grade'){ desenhaGrade(); escala(); creditoAtual(); return; }
+  // O clique consulta esta lista; refazê-la a cada quadro a mantém coerente
+  // com o que está de fato na tela, inclusive no meio de uma transição.
+  bolhasNaTela.length = 0;
+  // Abaixo de 4% de opacidade o desenho não é visível, e nas pontas da faixa
+  // cada modo passa por aí. Pular essa sobra corta o pior caso do custo sem
+  // mudar nada na tela: dentro da faixa os dois modos varrem os 108.558 pontos,
+  // e é a única situação em que essa varredura acontece duas vezes por quadro.
+  const MIN_VISIVEL = 0.04;
+  // o realce vem ANTES das bolhas: é fundo do estado, não marca sobre ele
+  // o realce do estado vale também com um estado já escolhido — aí ele marca o
+  // VIZINHO sob o ponteiro, e não pode acompanhar aUF, que nesse caso é zero
+  if(ufRealce >= 0 && (ufFiltrada || aUF > MIN_VISIVEL)){
+    ctx.globalAlpha = ufFiltrada ? 1 : aUF; desenhaRealceUF();
+  }
+  if(munRealce >= 0){ ctx.globalAlpha = 1; desenhaRealceMun(); }
+  if(aUF > MIN_VISIVEL){ ctx.globalAlpha = aUF; desenhaBolhasUF(aUF >= 0.5); }
+  if(aGrade > MIN_VISIVEL){ ctx.globalAlpha = aGrade; desenhaGrade(aGrade >= 0.5); }
+  ctx.globalAlpha = 1;
+  if(aPino <= MIN_VISIVEL){ escala(); creditoAtual(); return; }
   const cPub = css('--pub'), cConv = css('--conv'), cSup = css('--surface');
-  const marg = modo === 'pino' ? raio*3.2 : raio+3;
+  const marg = raio*3.2;
 
   {
+    ctx.globalAlpha = aPino;
     ctx.lineWidth = 2; ctx.strokeStyle = cSup;
     const naTela = [];
     for(let i=0;i<N;i++){
@@ -921,7 +1494,7 @@ function desenha(){
     ctx.beginPath(); ctx.arc(x, y, rr, 0, 6.284);
     ctx.strokeStyle = css('--surface'); ctx.lineWidth = 4; ctx.stroke();
     ctx.strokeStyle = css('--ink'); ctx.lineWidth = 2; ctx.stroke();
-    if(modo === 'pino'){
+    if(aPino >= 0.5){
       ctx.fillStyle = css(esfera[sel]===0 ? '--pub' : '--conv');
       ctx.strokeStyle = css('--surface'); ctx.lineWidth = 2;
       pino(x, y, raio);
@@ -998,30 +1571,86 @@ function zoomMinimo(){
   return (Number.isFinite(zf) && zf > 0) ? zf : 300;
 }
 const Z_PONTO_UNICO = 4e6;   // mesma escala do clique na lista de próximos
-function verTudo(){
-  animando=false;
-  let x0=1,x1=0,y0=1,y1=0, n=0;
-  for(let i=0;i<N;i++){ if(!vis[i]) continue;
-    n++;
-    if(px[i]<x0)x0=px[i]; if(px[i]>x1)x1=px[i];
-    if(py[i]<y0)y0=py[i]; if(py[i]>y1)y1=py[i]; }
-  if(!n) return desenha();          // recorte vazio: preserva o enquadramento atual
+// Um zoom de repouso não pode cair DENTRO de uma faixa de transição: ali dois
+// modos convivem a meia opacidade, e o mapa fica parado num estado turvo — a
+// bolha translúcida com os pinos aparecendo por baixo. A faixa existe para ser
+// atravessada, não habitada. Este ajuste empurra o zoom para a borda mais
+// próxima, em escala log, e o desvio é sempre menor que 1,7x.
+function foraDaFaixa(nz){
+  // a fronteira UF -> grade não existe quando há estado escolhido: ali a
+  // camada de bolhas por UF já está desligada
+  const fronteiras = ufFiltrada ? [ZOOM_PINOS] : [ZOOM_CONTEXTO, ZOOM_PINOS];
+  for(const T of fronteiras){
+    if(nz > T && nz < T*BANDA_TROCA){
+      return (Math.log(nz/T) < Math.log(BANDA_TROCA)/2) ? T*0.99 : T*BANDA_TROCA*1.01;
+    }
+  }
+  return nz;
+}
+// Caixa do que está SELECIONADO, em coordenadas de mundo. Enquadrar o polígono,
+// e não os estabelecimentos, é o que centraliza o que o usuário escolheu:
+// Medicilândia tem os postos amontoados na sede, e enquadrar por eles jogava o
+// município — e o próprio nome dele — para fora da tela.
+function caixaDaSelecao(){
+  // Com um bairro escolhido, o polígono do município é grande demais: o
+  // recorte desceu um degrau e o enquadramento tem de descer junto. Aí voltam
+  // a valer os estabelecimentos, que são a única geometria que temos abaixo
+  // do município.
+  if(bairroSel >= 0) return null;
+  if(munSel >= 0 && malhaMun){
+    const m = malhaMun.find(x => x.i === munSel);
+    if(m) return [m.x0, m.y0, m.x1, m.y1];
+  }
+  if(munSel < 0 && ufSel >= 0){
+    const u = ufsGeo.find(x => x.i === ufSel);
+    if(u) return [u.x0, u.y0, u.x1, u.y1];
+  }
+  return null;
+}
+function verTudo(animado){
+  const sel = caixaDaSelecao();
+  let x0, y0, x1, y1;
+  if(sel){
+    [x0, y0, x1, y1] = sel;
+  } else {
+    x0=1; x1=0; y0=1; y1=0;
+    let n=0;
+    for(let i=0;i<N;i++){ if(!vis[i]) continue;
+      n++;
+      if(px[i]<x0)x0=px[i]; if(px[i]>x1)x1=px[i];
+      if(py[i]<y0)y0=py[i]; if(py[i]>y1)y1=py[i]; }
+    if(!n){ animando=false; return desenha(); }   // recorte vazio: preserva o enquadramento
+  }
   const m = 0.08, dx = x1-x0, dy = y1-y0;
+  let nz;
   if(dx <= 0 && dy <= 0){
     // Sem extensão em nenhum eixo: um estabelecimento, ou vários na mesma
     // coordenada. Não há caixa para ajustar — adota-se a escala de ~1 km, a
     // mesma da lista de próximos. Fechar mais afirmaria uma precisão que a
     // coordenada do CNES não tem (D-15, A-07), e Math.max preserva o zoom de
     // quem já estava mais perto.
-    z = Math.max(z, Z_PONTO_UNICO);
+    nz = Math.max(z, Z_PONTO_UNICO);
   } else {
     // Um eixo sem extensão não deve restringir o ajuste do outro.
-    z = Math.min(dx > 0 ? W/(dx*(1+m)) : Infinity,
-                 dy > 0 ? H/(dy*(1+m)) : Infinity);
-    z = Math.max(zoomMinimo(), Math.min(1e8, z));
+    nz = Math.min(dx > 0 ? W/(dx*(1+m)) : Infinity,
+                  dy > 0 ? H/(dy*(1+m)) : Infinity);
+    nz = Math.max(zoomMinimo(), Math.min(1e8, nz));
   }
-  ox = W/2 - (x0+x1)/2*z; oy = H/2 - (y0+y1)/2*z;
-  desenha();
+  nz = foraDaFaixa(nz);
+  const cx = (x0+x1)/2, cy = (y0+y1)/2;
+  // Sem animação no primeiro enquadramento e quando o mapa ainda não tem
+  // posição: não há de onde sair. Nos demais o deslocamento é animado, porque
+  // é ele que liga o lugar antigo ao novo — um salto instantâneo obriga a
+  // reencontrar onde se está, que é o problema que a suavização existe para
+  // evitar.
+  if(!animado || !z || !W || !H){
+    animando = false;
+    z = nz;
+    ox = W/2 - cx*z; oy = H/2 - cy*z;
+    desenha();
+    return;
+  }
+  alvoZoom(nz, cx*z + ox, cy*z + oy, W/2, H/2);
 }
 
 // ---- recortes --------------------------------------------------------------
@@ -1048,6 +1677,8 @@ fUF.onchange = () => {
       .forEach(([m,i])=>fMun.add(new Option(cap(m),i)));
     fMun.disabled = false;
   }
+  // as divisas do estado escolhido — buscadas aqui, uma vez por estado
+  carregaMalhaMun(u);
   fMun.onchange();
 };
 fMun.onchange = () => {
@@ -1063,7 +1694,7 @@ fMun.onchange = () => {
       .forEach(([t,b])=>fBairro.add(new Option(t,b)));
     fBairro.disabled = false;
   }
-  filtra(); verTudo();
+  filtra(); verTudo(true);
 };
 
 // ---- disponibilidade das opções --------------------------------------------
@@ -1135,6 +1766,18 @@ function filtra(){
   const e = fEsfera.value===''? -1 : +fEsfera.value;
   let pub=0, conv=0, leitosSus=0;
   const munsVistos = new Set(), bairrosVistos = new Set();
+  resumoUFLivre = D.ufs.map(()=>({n:0, pub:0}));
+  if(!munLivreN){ munLivreN = new Int32Array(D.muns.length); munLivreP = new Int32Array(D.muns.length); }
+  else { munLivreN.fill(0); munLivreP.fill(0); }
+  ufFiltrada = (u >= 0 || mu >= 0);
+  munFiltrada = (mu >= 0);
+  ufSel = u; munSel = mu; bairroSel = ba;
+  // Qualquer mudança de recorte invalida o rótulo do estado: ou ele deixa de
+  // fazer sentido (escolher a UF pelo seletor tira a visão nacional, e o rótulo
+  // ficava preso no meio do mapa), ou os números que ele mostra envelhecem —
+  // marcar "hospital" muda a contagem por estado. Limpar aqui cobre os dois,
+  // e cobre também as mudanças feitas pelo painel, que não passam pelo clique.
+  limpaRealceUF();
   nVis = 0;
   for(let i=0;i<N;i++){
     let ok = 1;
@@ -1144,6 +1787,21 @@ function filtra(){
     if(ok && t>=0 && tipo[i]!==t) ok=0;
     if(ok && e>=0 && esfera[i]!==e) ok=0;
     if(ok && sv>=0 && servIdx[i].indexOf(sv)<0) ok=0;
+    // Totais por UF ignorando o próprio recorte territorial — mesma regra que
+    // já vale para tipo, serviço e natureza: a faceta não se filtra. Sem isto,
+    // com um estado selecionado, passar o ponteiro sobre outro mostraria zero,
+    // porque o filtro de UF o teria zerado. O recorte assistencial continua
+    // valendo: com "hospital" marcado, o rótulo conta hospitais.
+    if((t<0 || tipo[i]===t) && (e<0 || esfera[i]===e) &&
+       (sv<0 || servIdx[i].indexOf(sv)>=0)){
+      const L = resumoUFLivre[D.munUF[mun[i]]];
+      L.n++; if(esfera[i]===0) L.pub++;
+      // o município ignora o recorte de município e bairro, mas respeita o de
+      // UF: dentro de um estado, o rótulo de cada cidade conta a própria cidade
+      if(u<0 || D.munUF[mun[i]]===u){
+        munLivreN[mun[i]]++; if(esfera[i]===0) munLivreP[mun[i]]++;
+      }
+    }
     vis[i]=ok;
     if(ok){
       nVis++; munsVistos.add(mun[i]); bairrosVistos.add(mun[i]+':'+bairro[i]);
@@ -1152,11 +1810,16 @@ function filtra(){
     }
   }
   // resumo por UF para a visão agregada — recalculado no filtro, não por quadro
-  resumoUF = D.ufs.map(()=>({n:0, pub:0, sx:0, sy:0}));
+  // x0/y0/x1/y1 é a caixa envolvente dos pontos da UF, em coordenadas de mundo.
+  // Ela não serve ao desenho — serve ao clique: aproximar enquadrando a caixa
+  // do grupo garante que a nova vista contenha os pontos que estavam na bolha.
+  resumoUF = D.ufs.map(()=>({n:0, pub:0, sx:0, sy:0, x0:1, y0:1, x1:0, y1:0}));
   for(let i=0;i<N;i++){
     if(!vis[i]) continue;
     const u = resumoUF[D.munUF[mun[i]]];
     u.n++; u.sx += px[i]; u.sy += py[i]; if(esfera[i]===0) u.pub++;
+    if(px[i]<u.x0)u.x0=px[i]; if(px[i]>u.x1)u.x1=px[i];
+    if(py[i]<u.y0)u.y0=py[i]; if(py[i]>u.y1)u.y1=py[i];
   }
   g('nVis').textContent = fmt(nVis);
   g('nPub').textContent = fmt(pub);
@@ -1172,7 +1835,7 @@ function filtra(){
   if(obs) listaProximos();
   desenha();
 }
-[fBairro,fTipo,fServ,fEsfera].forEach(el=>el.onchange=()=>{ filtra(); verTudo(); });
+[fBairro,fTipo,fServ,fEsfera].forEach(el=>el.onchange=()=>{ filtra(); verTudo(true); });
 g('bReset').onclick=()=>{
   fUF.value=fTipo.value=fServ.value=fEsfera.value='';
   fUF.onchange();
@@ -1191,7 +1854,8 @@ cv.addEventListener('pointerdown',e=>{
   bctx.drawImage(cv,0,0); bx=0; by=0;
 });
 cv.addEventListener('pointermove',e=>{
-  if(!arrastando) return;
+  if(!arrastando){ atualizaRealceUF(e); return; }
+  limpaRealceUF();                     // arrastar cancela o realce
   const dx=e.clientX-ax, dy=e.clientY-ay;
   if(Math.abs(dx)+Math.abs(dy)>3) moveu=true;
   ox+=dx; oy+=dy; bx+=dx; by+=dy; ax=e.clientX; ay=e.clientY;
@@ -1203,12 +1867,99 @@ cv.addEventListener('pointerup',e=>{
   desenha();
   if(!moveu) clique(e);
 });
+cv.addEventListener('pointerleave', limpaRealceUF);
+// ---- estado sob o ponteiro -------------------------------------------------
+// O realce e o rótulo aparecem só na visão nacional, e só para quem tem
+// ponteiro: num toque o dedo cobre o alvo e não há "passar por cima". No
+// celular o toque seleciona direto, e os números vão para o painel, que já os
+// mostra. Por isso nada aqui é a única via para nenhuma informação.
+const rotuloUF = g('rotuloUF');
+function limpaRealceUF(){
+  if(ufRealce < 0 && munRealce < 0) return;
+  ufRealce = munRealce = -1; rotuloUF.hidden = true; cv.style.cursor = '';
+  agendaRedraw();
+}
+function escreveRotulo(titulo, n, pub){
+  rotuloUF.textContent = '';
+  const b = document.createElement('b');
+  b.textContent = titulo;
+  rotuloUF.appendChild(b);
+  if(n === 0){
+    const em = document.createElement('em');
+    em.textContent = 'nenhum estabelecimento neste recorte';
+    rotuloUF.appendChild(em);
+  } else {
+    rotuloUF.appendChild(linhaRotulo('--pub',  'Pública',  pub));
+    rotuloUF.appendChild(linhaRotulo('--conv', 'Conveniada', n - pub));
+  }
+  rotuloUF.hidden = false;
+  cv.style.cursor = 'pointer';
+  agendaRedraw();
+}
+// Um só tratador para os dois níveis. Qual deles vale é decidido por modoUF e
+// modoMun, que são exclusivos: o estado é alvo enquanto não há estado escolhido
+// e o município passa a ser depois disso.
+function atualizaRealceUF(e){
+  if(marcando) return limpaRealceUF();
+  const r = cv.getBoundingClientRect();
+  const mx = e.clientX - r.left, my = e.clientY - r.top;
+  if(modoUF()){
+    if(munRealce >= 0){ munRealce = -1; }
+    const iu = ufDesignada(mx, my);
+    if(iu < 0) return limpaRealceUF();
+    if(iu !== ufRealce){
+      ufRealce = iu;
+      const t = resumoUFLivre[iu] || {n:0, pub:0};
+      escreveRotulo(NOME_UF[D.ufs[iu]] || D.ufs[iu], t.n, t.pub);
+    }
+  } else if(modoMun()){
+    const m = munSob(mx, my);
+    if(m && m.i >= 0){
+      if(ufRealce >= 0){ ufRealce = -1; }
+      if(m.i !== munRealce){
+        munRealce = m.i;
+        escreveRotulo(cap(D.muns[m.i]), munLivreN[m.i], munLivreP[m.i]);
+      }
+    } else {
+      // fora do estado escolhido: o alvo é o estado vizinho, e ele precisa
+      // responder ao ponteiro igual aos municípios — senão o nome desenhado
+      // parece decoração e não convite
+      const u = ufSob(mx, my);
+      if(!u || u.i === ufSel) return limpaRealceUF();
+      if(munRealce >= 0){ munRealce = -1; }
+      if(u.i !== ufRealce){
+        ufRealce = u.i;
+        const t = resumoUFLivre[u.i] || {n:0, pub:0};
+        escreveRotulo(NOME_UF[u.sigla] || u.sigla, t.n, t.pub);
+      }
+    }
+  } else {
+    return limpaRealceUF();
+  }
+  // posiciona ao lado do cursor, virando de lado ou para cima quando encosta
+  // na borda — senão o rótulo sai da tela justamente nos lugares das pontas
+  const lr = rotuloUF.getBoundingClientRect();
+  let x = mx + 16, y = my + 16;
+  if(x + lr.width  > W - 8) x = mx - lr.width  - 16;
+  if(y + lr.height > H - 8) y = my - lr.height - 16;
+  rotuloUF.style.left = Math.max(8, x) + 'px';
+  rotuloUF.style.top  = Math.max(8, y) + 'px';
+}
+function linhaRotulo(token, nome, n){
+  const s = document.createElement('span');
+  const i = document.createElement('i');
+  i.style.background = 'var(' + token + ')';
+  s.appendChild(i);
+  s.appendChild(document.createTextNode(nome + ' ' + fmt(n)));
+  return s;
+}
 // ---- zoom amortecido -------------------------------------------------------
 // A roda define um alvo e o desenho persegue esse alvo em passos exponenciais.
 // A interpolação é feita em log(z) porque zoom é multiplicativo: aproximar de
 // 2× para 4× é o mesmo "tanto" que de 4× para 8×. Interpolar z linearmente é o
 // que produz a sensação dura de salto.
 let zAlvo = 0, zIni = 0, tIni = 0, ancX = 0, ancY = 0, telaX = 0, telaY = 0, animando = false;
+let telaXi = 0, telaYi = 0, telaXf = 0, telaYf = 0;   // trajeto da âncora na tela
 const DUR_ZOOM = 460;   // duração do gesto, em ms
 
 // rAF não dispara em aba oculta nem em alguns contextos embutidos; a reserva
@@ -1219,8 +1970,16 @@ function proximoQuadro(fn){
   const t = setTimeout(()=>{ if(!feito){ feito=true; cancelAnimationFrame(q); fn(); } }, 120);
 }
 function fixaAncora(){ ox = telaX - ancX*z; oy = telaY - ancY*z; }
-function alvoZoom(nz, tx, ty){
+// tx/ty é onde a âncora está agora na tela; txFim/tyFim é para onde ela deve
+// caminhar durante a animação. Omitidos, a âncora fica parada — que é o certo
+// para a roda e os botões, onde o ponto sob o cursor não deve escorregar.
+// Quem passa um destino é o clique em bolha: enquadrar um grupo que estava na
+// borda exige trazê-lo para o meio, senão ele se abre para fora da tela.
+function alvoZoom(nz, tx, ty, txFim, tyFim){
   telaX = tx; telaY = ty;
+  telaXi = tx; telaYi = ty;
+  telaXf = (txFim === undefined) ? tx : txFim;
+  telaYf = (tyFim === undefined) ? ty : tyFim;
   ancX = (telaX - ox)/z; ancY = (telaY - oy)/z;   // ponto do mundo sob o cursor
   const alvo = Math.max(zoomMinimo(), Math.min(1e8, nz));
   // No piso (ou no teto) o alvo vira o próprio zoom atual. Sem esta saída, cada
@@ -1229,7 +1988,11 @@ function alvoZoom(nz, tx, ty){
   // mudança na tela, que se vê como travamento. Antes isto não aparecia porque
   // o piso era 300, praticamente inalcançável; agora o piso é a visão nacional,
   // que é justamente onde o mapa abre.
-  if(Math.abs(alvo - z) / z < 1e-3) return;
+  // ...mas só quando a âncora também não tem para onde ir. Enquadrar um
+  // município vizinho do mesmo tamanho é quase só deslocamento: o zoom mal
+  // muda, e sem esta segunda condição o mapa não sairia do lugar.
+  if(Math.abs(alvo - z) / z < 1e-3 &&
+     Math.abs(telaXf - telaXi) < 1 && Math.abs(telaYf - telaYi) < 1) return;
   zAlvo = alvo;
   zIni = z; tIni = performance.now();       // reinicia a curva a partir de onde está
   animando = true; ligaLoop();
@@ -1241,13 +2004,76 @@ function avancaZoom(){
   const t = Math.min(1, (performance.now() - tIni) / DUR_ZOOM);
   const e = 1 - Math.pow(1 - t, 3);             // desaceleração cúbica
   z = zIni * Math.pow(zAlvo/zIni, e);           // interpolação em escala log
-  if(t >= 1){ z = zAlvo; animando = false; }
+  // a âncora percorre o trajeto com a MESMA curva do zoom, senão o deslocamento
+  // e a aproximação terminam em instantes diferentes e o movimento se parte
+  telaX = telaXi + (telaXf - telaXi)*e;
+  telaY = telaYi + (telaYf - telaYi)*e;
+  if(t >= 1){ z = zAlvo; telaX = telaXf; telaY = telaYf; animando = false; }
   fixaAncora();
 }
 // o primeiro avanço a partir da visão nacional vai direto à camada de contexto,
 // pulando as escalas intermediárias em que a base limpa não acrescenta nada
 function comSalto(base, nz, ampliando){
-  return (ampliando && base < ZOOM_CONTEXTO) ? Math.max(nz, ZOOM_CONTEXTO*1.15) : nz;
+  // O destino passa da fronteira e da faixa de transição inteira. Parar em
+  // 1,15x deixava o mapa em repouso NO MEIO da dissolução, com os dois modos
+  // a 26% cada — um estado turvo que não é nem um desenho nem o outro.
+  return (ampliando && base < ZOOM_CONTEXTO)
+    ? Math.max(nz, ZOOM_CONTEXTO*BANDA_TROCA*1.05) : nz;
+}
+// ---- clique em bolha: enquadrar o grupo -------------------------------------
+// O clique agregado multiplicava o zoom por 3,2 na direção do ponteiro, sem
+// olhar o que havia ali. Como o fator é fixo e o conteúdo não é, a vista nova
+// podia cair em terreno sem nenhuma marca: some a referência e não se sabe
+// mais onde nem em que escala se está — o efeito que a literatura de interfaces
+// zoomáveis chama de desert fog. Acontecia de verdade: clicar numa bolha de
+// dois estabelecimentos em Brasiléia deixava um ponto solto no vazio.
+//
+// Agora o destino é o zoom que ENQUADRA a caixa dos pontos daquela bolha. Por
+// construção a vista nova contém o que estava dentro dela.
+// A tolerância generosa em volta da bolha existe porque o alvo real é pequeno —
+// o ponto solto tem 4,4 px — e errar por alguns pixels não deveria custar nada.
+// Fora dela não há bolha nenhuma, e aí o clique não faz nada: ver abaixo.
+const TOLERANCIA_CLIQUE = 44;
+function bolhaSob(mx, my, tol){
+  if(tol === undefined) tol = TOLERANCIA_CLIQUE;
+  let melhor = null, menor = Infinity;
+  for(const b of bolhasNaTela){
+    const dx = b.x - mx, dy = b.y - my, d = Math.sqrt(dx*dx + dy*dy);
+    if(d <= b.r + tol && d < menor){ menor = d; melhor = b; }
+  }
+  return melhor;
+}
+// Qual estado o ponteiro designa na visão nacional. A bolha vem primeiro, sem
+// tolerância: ela sabe a que UF pertence, e o polígono por baixo dela pode ser
+// o do vizinho. Fora das bolhas, decide a geografia.
+//
+// Não há tolerância aqui porque não é preciso: o polígono cobre toda a área em
+// volta da bolha, então errar a bolha por pouco continua acertando o estado.
+function ufDesignada(mx, my){
+  const b = bolhaSob(mx, my, 0);
+  if(b && b.ufIdx !== undefined) return b.ufIdx;
+  const u = ufSob(mx, my);
+  return u ? u.i : -1;
+}
+function zoomNoGrupo(b){
+  const m = 1.45;                              // folga em volta da caixa
+  const dx = b.x1 - b.x0, dy = b.y1 - b.y0;
+  let nz = Math.min(dx > 0 ? W/(dx*m) : Infinity,
+                    dy > 0 ? H/(dy*m) : Infinity);
+  // Grupo inteiro na mesma coordenada: não há caixa para enquadrar, e nenhuma
+  // aproximação separa os pontos. Vai à escala de ~1 km, acima de ZOOM_PINOS,
+  // de onde o próximo clique abre a lista dos que dividem a coordenada.
+  if(!Number.isFinite(nz)) nz = Z_PONTO_UNICO;
+  // O teto evita fechar além do que a coordenada do CNES sustenta; o piso
+  // garante que todo clique avance de forma perceptível.
+  nz = Math.max(z*1.6, Math.min(nz, Z_PONTO_UNICO));
+  // A âncora é o centro da CAIXA — não o da bolha, que é a média das posições e
+  // pode estar deslocado dentro dela — e ela caminha até o meio da tela. Sem
+  // esse deslocamento, uma bolha clicada perto da borda se abriria para fora:
+  // o zoom enquadraria a caixa, mas fora do campo visível. Medido ao testar em
+  // Brasiléia, com a bolha a 30 px da margem direita.
+  const cx = (b.x0 + b.x1)/2, cy = (b.y0 + b.y1)/2;
+  alvoZoom(comSalto(z, nz, true), cx*z + ox, cy*z + oy, W/2, H/2);
 }
 cv.addEventListener('wheel',e=>{
   e.preventDefault();
@@ -1265,7 +2091,7 @@ function zoomBotao(f){
 }
 g('bMais').onclick=()=>zoomBotao(2);
 g('bMenos').onclick=()=>zoomBotao(0.5);
-g('bTudo').onclick=verTudo;
+g('bTudo').onclick=()=>verTudo(true);
 
 function clique(e){
   const r=cv.getBoundingClientRect(), mx=e.clientX-r.left, my=e.clientY-r.top;
@@ -1277,18 +2103,58 @@ function clique(e){
     confirmaMarcacao(la, lo);
     return;
   }
-  if(z < ZOOM_PINOS){                 // agregado: clicar aproxima o agrupamento
-    alvoZoom(comSalto(z, z*3.2, true), mx, my);
+  // Visão nacional: o alvo é o ESTADO, e a bolha e o polígono designam o mesmo
+  // estado. Na escala do país a bolha do Acre é o Acre — fazer a bolha
+  // aproximar e o polígono filtrar seriam duas respostas para o mesmo gesto.
+  //
+  // Selecionar não abre um sistema de navegação paralelo: alimenta o MESMO
+  // seletor de UF do painel. Daí para frente tudo o que já existe acontece
+  // sozinho — os totais recalculam, o enquadramento vai para o estado, o
+  // seletor de municípios se popula e as facetas atualizam a disponibilidade.
+  if(modoUF()){
+    const iu = ufDesignada(mx, my);
+    // Fora do território o clique não faz nada, deliberadamente. Antes ele
+    // multiplicava o zoom por 3,2 ali mesmo; um clique no oceano entregava uma
+    // tela azul inteiramente vazia, sem marca e sem pista de onde se estava.
+    // Quem quer aproximar o vazio tem a roda, o + e − e o enquadrar.
+    if(iu >= 0){ limpaRealceUF(); fUF.value = String(iu); fUF.onchange(); }
     return;
   }
-  let melhor=-1, dist=18*18;
-  for(let i=0;i<N;i++){
-    if(!vis[i]) continue;
-    const dx=px[i]*z+ox-mx; if(dx>18||dx<-18) continue;
-    const dy=py[i]*z+oy-my; if(dy>18||dy<-18) continue;
-    const d=dx*dx+dy*dy; if(d<dist){ dist=d; melhor=i; }
+  // A ficha do estabelecimento tem prioridade sobre o território: escolhida a
+  // cidade, todos os pinos dela estão na tela desde o primeiro enquadramento,
+  // e o clique neles é o que o usuário foi buscar. Sem isto o pino ficava
+  // atrás do polígono e um toque nele trocava o recorte.
+  const melhor = modoPinos() ? pinoSob(mx, my) : -1;
+  if(melhor < 0){
+    if(modoMun()){
+      const m = munSob(mx, my);
+      // Cidade DIFERENTE da escolhida: troca direto.
+      if(m && m.i >= 0 && m.i !== munSel){
+        limpaRealceUF(); fMun.value = String(m.i); fMun.onchange(); return;
+      }
+      // Fora do estado escolhido não há município carregado, e antes o clique
+      // caía numa bolha qualquer e só dava zoom — o usuário ficava PRESO no
+      // estado, sem nenhum jeito de sair clicando. Agora o estado vizinho é
+      // alvo como qualquer outro.
+      if(!m){
+        const iu = ufSob(mx, my);
+        if(iu && iu.i !== ufSel){
+          limpaRealceUF(); fUF.value = String(iu.i); fUF.onchange(); return;
+        }
+      }
+      // Sobrou: clique dentro da cidade já escolhida, sem pino por perto.
+      // Aí o agrupamento manda — é o gesto de descer, não o de trocar.
+      const b = bolhaSob(mx, my);
+      if(b) zoomNoGrupo(b);
+      return;
+    }
+    if(z < ZOOM_PINOS){      // grade: a célula não é um lugar, então aproxima
+      const b = bolhaSob(mx, my);
+      if(b) zoomNoGrupo(b);
+      return;
+    }
+    return fecha();
   }
-  if(melhor<0) return fecha();
   const irmaos = grupos[grupoDe[melhor]].filter(i => vis[i]);
   sel = melhor;
   if(irmaos.length > 1){ grupoAtual = irmaos; mostraLista(irmaos); }

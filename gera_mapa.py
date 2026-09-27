@@ -33,6 +33,10 @@ from simplifica import simplifica
 COMP = sys.argv[1] if len(sys.argv) > 1 else "202606"
 TOL_MALHA_FINA  = 0.002
 TOL_MALHA_GROSSA = 0.02
+# A malha municipal entra numa escala de estado, não de rua, e já vem do IBGE
+# em qualidade "minima". A mesma tolerância da malha fina de UFs mantém as
+# divisas coerentes com o contorno do país que elas dividem.
+TOL_MALHA_MUN = 0.002
 DATA = os.path.join(AQUI, "BASE_DE_DADOS_CNES_%s" % COMP)
 SAIDA = os.path.join(AQUI, "mapa_rede_sus_%s.html" % COMP)
 P = lambda n: os.path.join(DATA, "%s%s.csv" % (n, COMP))
@@ -399,3 +403,52 @@ print("gerado: web/index.html   %5.1f MB  (%.1f MB com gzip)"
       % (n_idx / 1e6, gz(os.path.join(web, "index.html")) / 1e6))
 print("gerado: web/fichas.json  %5.1f MB  (%.1f MB com gzip)"
       % (n_fic / 1e6, gz(os.path.join(web, "fichas.json")) / 1e6))
+
+# ---- malha municipal, um arquivo por UF ------------------------------------
+# Um arquivo por estado, e não um só com o país inteiro, porque o mapa só
+# precisa das divisas do estado em que o usuário entrou. Juntos são 2,9 MB;
+# separados, o pior caso (Minas, 853 municípios) é 124 KB comprimido e o
+# mediano fica perto de 27 KB. A página inicial não cresce um byte: o arquivo
+# só é buscado quando um estado é escolhido, e depois fica no cache.
+#
+# O índice "i" é a posição do município na lista `muns` que o mapa já usa —
+# o mesmo valor do seletor de município. Assim o clique no polígono alimenta
+# o recorte que já existe, sem tabela de conversão no cliente. Município sem
+# estabelecimento com convênio SUS sai com i = -1: a divisa é desenhada, mas
+# não há o que filtrar.
+cam_mun = os.path.join(INSUMOS, "malha_municipios_minima.json")
+if os.path.exists(cam_mun):
+    from simplifica import dp
+    dir_malhas = os.path.join(web, "malhas")
+    os.makedirs(dir_malhas, exist_ok=True)
+    bruto = json.load(open(cam_mun, encoding="utf-8"))
+    tot_b = tot_gz = tot_m = tot_v = 0
+    maior = (0, "")
+    sem_indice = 0
+    for sigla in sorted(bruto):
+        saida_uf = []
+        for m in bruto[sigla]:
+            aneis = []
+            for anel in m["aneis"]:
+                s = dp([tuple(p) for p in anel], TOL_MALHA_MUN)
+                if len(s) >= 4:
+                    aneis.append([[round(x, 4), round(y, 4)] for x, y in s])
+            if not aneis:
+                continue
+            i = imun.get(m["cod"][:6], -1)
+            if i < 0:
+                sem_indice += 1
+            saida_uf.append({"i": i, "a": aneis})
+            tot_v += sum(len(a) for a in aneis)
+        cam = os.path.join(dir_malhas, sigla + ".json")
+        open(cam, "w", encoding="utf-8").write(J(saida_uf))
+        b, g = os.path.getsize(cam), gz(cam)
+        tot_b += b; tot_gz += g; tot_m += len(saida_uf)
+        if g > maior[0]:
+            maior = (g, sigla, len(saida_uf))
+    print("gerado: web/malhas/*.json  27 arquivos · %d municípios · %d vértices"
+          % (tot_m, tot_v))
+    print("    %.2f MB cru · %.2f MB com gzip · maior: %s com %.0f KB (%d municípios)"
+          % (tot_b / 1e6, tot_gz / 1e6, maior[1], maior[0] / 1024, maior[2]))
+    print("    sem estabelecimento no recorte (divisa desenhada, não clicável): %d"
+          % sem_indice)
