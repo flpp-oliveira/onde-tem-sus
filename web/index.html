@@ -47,6 +47,13 @@
      o painel, por exemplo — para a página inteira deslizar e levar o mapa e a
      busca junto. Num mapa de tela cheia nada deve rolar fora dos painéis. */
   html,body{margin:0;height:100%;overflow:hidden;overscroll-behavior:none}
+  /* Fica fora da vista mas DENTRO da árvore: display:none ou visibility:hidden
+     tirariam o elemento também do leitor de tela, que é justamente quem deve
+     lê-lo. O recorte de 1px é a forma consagrada de esconder só dos olhos. */
+  .soLeitor{
+    position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;
+    overflow:hidden;white-space:nowrap;clip-path:inset(50%);
+  }
   body{
     font:14px/1.55 "IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
     color:var(--ink);-webkit-font-smoothing:antialiased;
@@ -560,7 +567,7 @@
 </head>
 <body>
 
-<aside>
+<aside aria-label="Painel">
   <div class="busca">
     <button class="icone" id="bVoltar" hidden aria-label="Voltar">
       <svg viewBox="0 0 24 24"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>
@@ -597,7 +604,13 @@
   </div>
 </aside>
 
-<main>
+<main aria-label="Mapa">
+  <!-- O nome do site existia só no título da aba. Leitores de tela oferecem
+       "ir para o título principal", e não havia para onde ir. Fica escondido
+       dos olhos porque a marca já está desenhada na caixa de busca. -->
+  <h1 class="soLeitor">Onde Tem SUS — a rede do SUS no mapa</h1>
+  <!-- Onde o que mudou sozinho é anunciado. Ver `anuncia`, mais abaixo. -->
+  <p class="soLeitor" id="anuncio" role="status" aria-live="polite"></p>
   <div id="mapa"></div>
 <div class="trilho">
   <button id="bAvancado" aria-expanded="false" aria-controls="avancado"
@@ -1370,6 +1383,29 @@
     else if(e.tipo === 'bairro') verBairro(e.x);
   }
 
+  // Quem enxerga vê o número grande mudar na cara. Quem ouve não recebe nada:
+  // o leitor de tela fica parado no seletor, e a pessoa não sabe se o filtro
+  // pegou. Esta é a frase curta que conta o que ficou na tela.
+  //
+  // Com espera, porque uma escolha costuma disparar mais de uma mudança — o
+  // recorte e a vista — e anunciar as duas atropelaria a primeira. Vence a
+  // última, que é a que descreve o estado final.
+  //
+  // E limpando antes de escrever: texto idêntico ao que já estava não é
+  // relido, e filtrar duas vezes para o mesmo total ficaria mudo.
+  // Declarada aqui, antes de quem a lê: `let` não sobe, e aplicaRecorte vem
+  // antes de capaDoLugar no arquivo. Ver o uso lá embaixo.
+  let repintandoPorFiltro = false;
+  let esperaAnuncio = null;
+  function anuncia(texto){
+    clearTimeout(esperaAnuncio);
+    esperaAnuncio = setTimeout(() => {
+      const n = g('anuncio');
+      n.textContent = '';
+      setTimeout(() => { n.textContent = texto; }, 60);
+    }, 320);
+  }
+
   function aplicaRecorte(){
     const f = map.getSource('estab');
     if(!f) return;
@@ -1379,7 +1415,16 @@
     pintaRecorte(lista);
     // Os números dos seletores descrevem o recorte, então mudam com ele.
     encheAssistencial();
+    // Restaura o valor anterior em vez de zerar: quem chamou pode já ter
+    // ligado a trava, e zerar aqui a desligaria no meio do caminho.
+    const travaAntes = repintandoPorFiltro;
+    repintandoPorFiltro = true;
     repintaVista();
+    repintandoPorFiltro = travaAntes;
+    anuncia(semRecorte()
+      ? 'Filtros limpos. ' + fmt(pontos.features.length) + ' estabelecimentos no mapa.'
+      : fmt(lista.length) + (lista.length === 1 ? ' estabelecimento' : ' estabelecimentos')
+        + ' no recorte.');
   }
 
   // ---- o rodape da gaveta -------------------------------------------------
@@ -1611,25 +1656,33 @@
     if(macroDe) g('campoMacro').hidden = false;
     enchePorUF(); encheMacro(); encheMun(); encheBairro(); encheAssistencial();
 
-    g('fUF').onchange = e => {
+    // Mexer num seletor repinta a vista, e repintar leva o foco ao título — o
+    // que aqui seria sequestro: escolher a UF jogaria a pessoa para o painel,
+    // sem conseguir seguir para o município. Clicar num lugar da LISTA continua
+    // levando o foco, que é onde isso ajuda.
+    const semRoubarFoco = fn => e => {
+      repintandoPorFiltro = true;
+      try { fn(e); } finally { repintandoPorFiltro = false; }
+    };
+    g('fUF').onchange = semRoubarFoco(e => {
       recorte.uf = e.target.value;
       recorte.macro = -1; recorte.mun = -1; recorte.bairro = -1;
       encheMacro(); encheMun(); encheBairro(); aplicaRecorte();
       if(recorte.uf) vaiParaUF(recorte.uf);        // escolhido: move e recorta
-    };
-    g('fMacro').onchange = e => {
+    });
+    g('fMacro').onchange = semRoubarFoco(e => {
       recorte.macro = e.target.value === '' ? -1 : +e.target.value;
       recorte.mun = -1; recorte.bairro = -1;
       encheMun(); encheBairro(); aplicaRecorte();
-    };
-    g('fMun').onchange = e => {
+    });
+    g('fMun').onchange = semRoubarFoco(e => {
       recorte.mun = e.target.value === '' ? -1 : +e.target.value;
       recorte.bairro = -1;
       encheBairro(); aplicaRecorte();
       const f = munPorIndice.get(recorte.mun);
       if(f) vaiParaMun(f);
-    };
-    g('fBairro').onchange = e => {
+    });
+    g('fBairro').onchange = semRoubarFoco(e => {
       recorte.bairro = e.target.value === '' ? -1 : +e.target.value;
       aplicaRecorte();
       if(recorte.bairro >= 0 && recorte.mun >= 0){
@@ -1638,7 +1691,7 @@
           mun:cap(catalogo.muns[m]), uf:catalogo.ufs[catalogo.munUF[m]],
           n:(estabPorMun.get(m) || []).filter(k => bairroDe[k] === b).length});
       }
-    };
+    });
     g('fTipo').onchange   = e => { recorte.tipo   = e.target.value === '' ? -1 : +e.target.value; aplicaRecorte(); };
     g('fServ').onchange   = e => { recorte.serv   = e.target.value === '' ? -1 : +e.target.value; aplicaRecorte(); };
     g('fEsfera').onchange = e => { recorte.esfera = e.target.value === '' ? -1 : +e.target.value; aplicaRecorte(); };
@@ -1978,9 +2031,20 @@
     corpo.appendChild(lista);
   }
 
+  // Clicar num município da lista destrói o botão clicado: o foco cai no
+  // corpo da página, e quem usa leitor de tela é jogado de volta ao começo sem
+  // ouvir onde chegou. Levar o foco ao título da vista nova resolve as duas
+  // coisas de uma vez — a pessoa fica no lugar certo E ouve o nome dele.
+  //
+  // Só que repintar por causa de um filtro também passa por aqui, e aí roubar
+  // o foco seria pior que não fazer nada: a pessoa mexe num seletor da gaveta
+  // e é arrastada para o painel. Daí a trava, declarada junto do anunciador.
   function capaDoLugar(nome, escopo, n, pub, tm, sa, sb){
     const capa = el('div','capa');
-    capa.appendChild(el('h2', null, nome));
+    const h = el('h2', null, nome);
+    h.tabIndex = -1;
+    if(!repintandoPorFiltro) setTimeout(() => h.focus({preventScroll:true}), 0);
+    capa.appendChild(h);
     capa.appendChild(el('div','escopo', escopo));
     const gr = el('div','grande');
     gr.appendChild(el('b', null, fmt(n)));
