@@ -618,6 +618,9 @@
     <div class="secao grupo"><h3>Recorte territorial</h3></div>
     <div class="campo"><label for="fUF">Unidade da Federação</label>
       <select id="fUF"></select></div>
+    <div class="campo" id="campoMacro" hidden>
+      <label for="fMacro">Macrorregião de saúde</label>
+      <select id="fMacro" disabled></select></div>
     <div class="campo"><label for="fMun">Município</label>
       <select id="fMun" disabled></select></div>
     <div class="campo"><label for="fBairro">Bairro</label>
@@ -734,6 +737,17 @@
     .replace(/(^|[\s\/(-])([a-zà-ú])/g, (m,a,b) => a + b.toUpperCase())
     .replace(/\b(De|Da|Do|Das|Dos|E|Em|A|O)\b/g, (m,_p,off) => off ? m.toLowerCase() : m)
     .replace(/\b(Sus|Cnes|Uti|Ubs|Samu|Caps|Sadt|Upa|Esf|Usf|Cpn)\b/gi, m => m.toUpperCase());
+
+  // Nome de macrorregião carrega sigla e algarismo romano — RRAS12 em São
+  // Paulo, MACRORREGIAO II em vários estados. O cap() desfigura os dois,
+  // devolvendo "Rras12" e "Ii": 26 dos 101 nomes saíam assim. Aqui eles
+  // voltam à caixa alta. O teste do romano exige que TODAS as letras estejam
+  // no alfabeto dos numerais, então "Centro" e "Macro" não entram.
+  const ROMANO = /^(?=[IVXLC]+$)X{0,3}(IX|IV|V?I{0,3})$/;
+  const capMacro = s => cap(s).replace(/[\wÀ-ú]+/g, w => {
+    const u = w.toUpperCase();
+    return (/^RRAS\d*$/.test(u) || ROMANO.test(u)) ? u : w;
+  });
 
   // Quais estabelecimentos há em cada município, montado uma vez.
   const estabPorMun = new Map();
@@ -1317,20 +1331,30 @@
   // recorte assistencial. Aqui ele governa os PINOS DO MAPA e o resumo desta
   // gaveta — os painéis de navegação seguem contando a rede inteira, porque
   // eles descrevem o lugar, não a pergunta que está sendo feita.
-  const recorte = {uf:'', mun:-1, bairro:-1, tipo:-1, serv:-1, esfera:-1, turno:-1};
+  const recorte = {uf:'', macro:-1, mun:-1, bairro:-1,
+                   tipo:-1, serv:-1, esfera:-1, turno:-1};
   const ufDe = i => catalogo.munUF[munDe[i]];
 
-  function passa(i){
+  // O recorte tem duas metades com papéis diferentes. A territorial diz ONDE
+  // se está olhando; a assistencial diz O QUE se procura. A contagem dos
+  // seletores precisa da territorial sozinha, por isso ela vira função.
+  function territorialOk(i){
     if(recorte.uf && catalogo.ufs[ufDe(i)] !== recorte.uf) return false;
+    if(recorte.macro >= 0 && macroDe[munDe[i]] !== recorte.macro) return false;
     if(recorte.mun >= 0 && munDe[i] !== recorte.mun) return false;
     if(recorte.bairro >= 0 && bairroDe[i] !== recorte.bairro) return false;
+    return true;
+  }
+  function passa(i){
+    if(!territorialOk(i)) return false;
     if(recorte.tipo >= 0 && tipoDe[i] !== recorte.tipo) return false;
     if(recorte.esfera >= 0 && estab.esfera[i] !== recorte.esfera) return false;
     if(recorte.serv >= 0 && !servDe[i].includes(recorte.serv)) return false;
     if(recorte.turno >= 0 && turnoDe[i] !== recorte.turno) return false;
     return true;
   }
-  const semRecorte = () => !recorte.uf && recorte.mun < 0 && recorte.bairro < 0
+  const semRecorte = () => !recorte.uf && recorte.macro < 0
+                        && recorte.mun < 0 && recorte.bairro < 0
                         && recorte.tipo < 0 && recorte.serv < 0 && recorte.esfera < 0
                         && recorte.turno < 0;
 
@@ -1353,6 +1377,8 @@
     const lista = semRecorte() ? pontos.features : pontos.features.filter(x => passa(x.properties.i));
     f.setData({type:'FeatureCollection', features:lista});
     pintaRecorte(lista);
+    // Os números dos seletores descrevem o recorte, então mudam com ele.
+    encheAssistencial();
     repintaVista();
   }
 
@@ -1364,6 +1390,7 @@
   function sincronizaSeletores(){
     const v = k => recorte[k] < 0 ? '' : String(recorte[k]);
     g('fUF').value = recorte.uf;
+    g('fMacro').value = v('macro');
     g('fMun').value = v('mun');       g('fBairro').value = v('bairro');
     g('fTipo').value = v('tipo');     g('fServ').value   = v('serv');
     g('fEsfera').value = v('esfera'); g('fTurno').value  = v('turno');
@@ -1381,6 +1408,7 @@
   function denominadores(){
     const chave = recorte.bairro >= 0 ? 'b' + recorte.mun + ':' + recorte.bairro
                 : recorte.mun >= 0    ? 'm' + recorte.mun
+                : recorte.macro >= 0  ? 'M' + recorte.macro
                 : recorte.uf          ? 'u' + recorte.uf
                 : '*';
     if(denomCache.has(chave)) return denomCache.get(chave);
@@ -1388,6 +1416,7 @@
     for(let i = 0; i < munDe.length; i++){
       const m = munDe[i];
       if(recorte.uf && catalogo.ufs[catalogo.munUF[m]] !== recorte.uf) continue;
+      if(recorte.macro >= 0 && macroDe[m] !== recorte.macro) continue;
       if(recorte.mun >= 0 && m !== recorte.mun) continue;
       if(recorte.bairro >= 0 && bairroDe[i] !== recorte.bairro) continue;
       muns.add(m); bairros.add(m + ':' + bairroDe[i]);
@@ -1459,11 +1488,40 @@
       (NOMES[a.sigla]||a.sigla).localeCompare(NOMES[b.sigla]||b.sigla, 'pt'));
     enche(g('fUF'), 'Todas as 27 UFs', ufs.map(u => [u.sigla, NOMES[u.sigla]||u.sigla]));
   }
+  // A macrorregião é o andar do planejamento de alta complexidade: agrupa
+  // regiões de saúde dentro da UF. Fica aqui, e não no painel do lugar, porque
+  // não é informação que resolva a pergunta de quem procura atendimento — é um
+  // recorte para quem quer olhar o país em pedaços grandes. Seis UFs têm uma
+  // macrorregião só; nelas o seletor nasce desligado, dizendo isso, em vez de
+  // oferecer uma escolha que não existe.
+  function encheMacro(){
+    if(!macroDe) return;                      // sem o arquivo de regiões
+    const sel = g('fMacro');
+    if(!recorte.uf){ enche(sel, 'Selecione uma UF', []); sel.disabled = true; return; }
+    const vistas = new Map();
+    for(const f of municipios.features){
+      if(f.properties.uf !== recorte.uf) continue;
+      const k = macroDe[f.properties.m];
+      if(k >= 0 && !vistas.has(k)) vistas.set(k, capMacro(regioes.macros[k]));
+    }
+    // numeric:true porque São Paulo numera as suas de 1 a 19: na ordem de
+    // texto pura, RRAS10 e RRAS11 vinham antes de RRAS2.
+    const lista = [...vistas].sort((a,b) =>
+      a[1].localeCompare(b[1], 'pt', {numeric:true}));
+    enche(sel, lista.length === 1 ? 'Macrorregião única na UF'
+                                  : 'Todas as ' + lista.length + ' macrorregiões', lista);
+    sel.disabled = lista.length < 2;
+  }
   function encheMun(){
     const sel = g('fMun');
     if(!recorte.uf){ enche(sel, 'Selecione uma UF', []); sel.disabled = true; return; }
+    // Escolhida uma macrorregião, a lista de municípios encolhe para dentro
+    // dela — do mesmo jeito que a UF já encolhe. Sem isso dava para montar um
+    // par impossível, macrorregião de um lado e município de outro, e o mapa
+    // ficava vazio sem explicar por quê.
     const lista = municipios.features
-      .filter(f => f.properties.uf === recorte.uf)
+      .filter(f => f.properties.uf === recorte.uf
+                && (recorte.macro < 0 || macroDe[f.properties.m] === recorte.macro))
       .sort((a,b) => a.properties.nome.localeCompare(b.properties.nome, 'pt'))
       .map(f => [f.properties.m, f.properties.nome]);
     enche(sel, 'Todos os ' + lista.length + ' municípios', lista);
@@ -1481,28 +1539,88 @@
     enche(sel, 'Todos os ' + lista.length + ' bairros', lista);
     sel.disabled = false;
   }
+  // Quantos estabelecimentos cada opção alcança AQUI: no território escolhido
+  // e com os demais filtros ligados.
+  //
+  // Cada seletor é contado com todos os outros valendo, menos ele próprio. Um
+  // seletor que se filtrasse a si mesmo mostraria o número cheio na opção
+  // escolhida e zero em todas as outras — inútil para escolher a próxima. Com
+  // esta regra, escolher um serviço refaz os números dos tipos, escolher um
+  // tipo refaz os dos serviços, e assim entre os quatro.
+  //
+  // Uma varredura só para os quatro: a conta por estabelecimento é de quatro
+  // comparações, e separar em quatro passagens custaria quatro vezes mais sem
+  // simplificar nada.
+  function contaFacetas(){
+    const tipo = new Map(), serv = new Map(), turno = new Map(), esfera = new Map();
+    const soma = (m, k) => m.set(k, (m.get(k) || 0) + 1);
+    for(let i = 0; i < N; i++){
+      if(!territorialOk(i)) continue;
+      const okT = recorte.tipo   < 0 || tipoDe[i]       === recorte.tipo;
+      const okS = recorte.serv   < 0 || servDe[i].includes(recorte.serv);
+      const okU = recorte.turno  < 0 || turnoDe[i]      === recorte.turno;
+      const okE = recorte.esfera < 0 || estab.esfera[i]  === recorte.esfera;
+      if(okS && okU && okE) soma(tipo, tipoDe[i]);
+      if(okT && okU && okE) for(const sv of servDe[i]) soma(serv, sv);
+      if(okT && okS && okE && turnoDe[i] >= 0) soma(turno, turnoDe[i]);
+      if(okT && okS && okU) soma(esfera, estab.esfera[i]);
+    }
+    return {tipo, serv, turno, esfera};
+  }
+
+  // O número entra no rótulo, e a opção que não alcança ninguém fica
+  // desabilitada: sai do alcance do clique, mas continua à vista. Esconder
+  // diria que o tipo não existe; mostrar "(0)" diz que ele existe e não está
+  // aqui — que é outra coisa, e é justamente o que alguém procurando
+  // atendimento precisa saber. A opção escolhida nunca é desabilitada, para
+  // que dê sempre para desfazer a escolha pelo mesmo caminho.
+  function encheContado(sel, primeira, itens, mapa, atual){
+    sel.textContent = '';
+    sel.appendChild(opcao('', primeira));
+    for(const [v, t] of itens){
+      const n = mapa.get(v) || 0;
+      const o = opcao(v, t + '  (' + fmt(n) + ')');
+      if(n === 0 && String(v) !== String(atual)) o.disabled = true;
+      sel.appendChild(o);
+    }
+    sel.value = atual === undefined || atual < 0 ? '' : String(atual);
+  }
+
   function encheAssistencial(){
-    enche(g('fTipo'), 'Todos os tipos',
-      catalogo.tipos.map((t,k) => [k, cap(t)]).sort((a,b) => a[1].localeCompare(b[1],'pt')));
-    enche(g('fServ'), 'Todos os serviços',
-      catalogo.servicos.map((t,k) => [k, cap(t)]).sort((a,b) => a[1].localeCompare(b[1],'pt')));
+    const c = contaFacetas();
+    const alfab = lista => lista.map((t,k) => [k, cap(t)])
+                                .sort((a,b) => a[1].localeCompare(b[1],'pt'));
+    encheContado(g('fTipo'), 'Todos os ' + catalogo.tipos.length + ' tipos',
+      alfab(catalogo.tipos), c.tipo, recorte.tipo);
+    encheContado(g('fServ'), 'Todos os ' + catalogo.servicos.length + ' serviços',
+      alfab(catalogo.servicos), c.serv, recorte.serv);
     // O turno nao e ordenado por nome: a ordem do catalogo vai do horario mais
     // curto ao mais longo, e alfabetar isso embaralharia uma escala.
-    enche(g('fTurno'), 'Qualquer turno',
-      catalogo.turnos.map((t,k) => [k, cap(t)]));
+    encheContado(g('fTurno'), 'Qualquer turno',
+      catalogo.turnos.map((t,k) => [k, cap(t)]), c.turno, recorte.turno);
+    encheContado(g('fEsfera'), 'Pública e privada conveniada',
+      [[0, 'Administração pública'], [1, 'Privada conveniada']], c.esfera, recorte.esfera);
   }
 
   // A montagem roda no FIM do script: estes seletores usam `el`, `linha` e
   // `barra`, que são const declaradas mais abaixo, e chamá-las aqui esbarra
   // na zona morta.
   function montaAvancado(){
-    enchePorUF(); encheMun(); encheBairro(); encheAssistencial();
+    // O campo só aparece se o arquivo de regiões desceu: ele é buscado com
+    // tolerância a falha, e um seletor vazio seria pior que nenhum.
+    if(macroDe) g('campoMacro').hidden = false;
+    enchePorUF(); encheMacro(); encheMun(); encheBairro(); encheAssistencial();
 
     g('fUF').onchange = e => {
       recorte.uf = e.target.value;
+      recorte.macro = -1; recorte.mun = -1; recorte.bairro = -1;
+      encheMacro(); encheMun(); encheBairro(); aplicaRecorte();
+      if(recorte.uf) vaiParaUF(recorte.uf);        // escolhido: move e recorta
+    };
+    g('fMacro').onchange = e => {
+      recorte.macro = e.target.value === '' ? -1 : +e.target.value;
       recorte.mun = -1; recorte.bairro = -1;
       encheMun(); encheBairro(); aplicaRecorte();
-      if(recorte.uf) vaiParaUF(recorte.uf);        // escolhido: move e recorta
     };
     g('fMun').onchange = e => {
       recorte.mun = e.target.value === '' ? -1 : +e.target.value;
@@ -1527,9 +1645,9 @@
     g('fTurno').onchange  = e => { recorte.turno  = e.target.value === '' ? -1 : +e.target.value; aplicaRecorte(); };
 
     g('bLimparRecorte').onclick = () => {
-      recorte.uf = ''; recorte.mun = -1; recorte.bairro = -1;
+      recorte.uf = ''; recorte.macro = -1; recorte.mun = -1; recorte.bairro = -1;
       recorte.tipo = -1; recorte.serv = -1; recorte.esfera = -1; recorte.turno = -1;
-      enchePorUF(); encheMun(); encheBairro(); encheAssistencial();
+      enchePorUF(); encheMacro(); encheMun(); encheBairro(); encheAssistencial();
       sincronizaSeletores();
       aplicaRecorte();
     };
