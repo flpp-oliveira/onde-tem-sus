@@ -10,6 +10,17 @@
      da mesma rosca desenhada na caixa de busca. -->
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#15589e">
+<script>
+  /* Restaura o tema ANTES da primeira pintura. Feito junto com o resto do
+     script, a pagina abriria clara e escureceria depois, com um piscao.
+     localStorage lanca em janela privativa ou com dados bloqueados, e ai o
+     site simplesmente abre no tema claro. */
+  try{
+    var __t = localStorage.getItem('tema');
+    if(__t === 'escuro' || __t === 'claro')
+      document.documentElement.setAttribute('data-tema', __t);
+  }catch(e){}
+</script>
 <link rel="icon" href="icone-192.png" sizes="192x192" type="image/png">
 <!-- O iPhone ignora o manifesto para o icone e o modo de janela; estas tres
      linhas sao a forma que ele entende. -->
@@ -791,6 +802,64 @@
     const u = w.toUpperCase();
     return (/^RRAS\d*$/.test(u) || ROMANO.test(u)) ? u : w;
   });
+
+  // O CNES grava em caixa alta e SEM ACENTO: o cap() devolve "Centro de
+  // Atencao Psicossocial". Esta tabela repõe o acento.
+  //
+  // É por PALAVRA, e não por frase. As 99 entradas dos três catálogos — 28
+  // tipos, 64 serviços, 7 turnos — usam 195 palavras distintas, e o
+  // vocabulário se repete: "saúde" aparece em quinze delas. Por frase seriam
+  // 99 linhas que envelhecem a cada competência nova; por palavra, uma
+  // entrada nova só aparece quando o CNES usa uma palavra que nunca usou.
+  //
+  // Vale só para esses catálogos. Bairro não passa por aqui: é nome próprio, e
+  // adivinhar acento em nome próprio erra. Município já vem acentuado do IBGE.
+  const ACENTOS = {
+    acoes:'ações', analise:'análise', atencao:'atenção', basica:'básica',
+    biologicos:'biológicos', clinica:'clínica', clinico:'clínico',
+    comissoes:'comissões', comites:'comitês', consultorio:'consultório',
+    continuo:'contínuo', cronica:'crônica', dentaria:'dentária',
+    diagnostico:'diagnóstico', dinamicos:'dinâmicos', dispensacao:'dispensação',
+    doenca:'doença', doencas:'doenças', emergencia:'emergência',
+    familia:'família', farmacia:'farmácia', graficos:'gráficos',
+    hanseniase:'hanseníase', hematologica:'hematológica',
+    imunizacao:'imunização', imunobiologicos:'imunobiológicos',
+    indigena:'indígena', indigenas:'indígenas',
+    intermediarios:'intermediários', laboratorio:'laboratório',
+    locomocao:'locomoção', logistica:'logística', manha:'manhã',
+    metodos:'métodos', movel:'móvel', orteses:'órteses',
+    ortopedica:'ortopédica', patologica:'patológica', plantao:'plantão',
+    policlinica:'policlínica', populacoes:'populações', praticas:'práticas',
+    pre:'pré', prevencao:'prevenção', primaria:'primária',
+    promocao:'promoção', protese:'prótese', proteses:'próteses',
+    publica:'pública', reabilitacao:'reabilitação', regulacao:'regulação',
+    sabados:'sábados', sanitaria:'sanitária', saude:'saúde',
+    servico:'serviço', servicos:'serviços', situacao:'situação',
+    telessaude:'telessaúde', toracica:'torácica', urgencia:'urgência',
+    urgencias:'urgências', vigilancia:'vigilância', violencia:'violência'
+  };
+  // O cap() já tem a sua lista de siglas; estas faltavam, e saíam "Dst/hiv/aids".
+  const SIGLAS_CAT = /^(DST|HIV|AIDS|LACEN|SADT)$/;
+  // O cap() abaixa de, da, do, e, em, a, o — e para nome de lugar isso basta.
+  // Nestas frases aparecem outras, e saiam "Atencao Ao Luto", "Pessoas Com
+  // Doencas", "e Ou Hematologica". A lista maior fica so aqui: em nome de
+  // municipio ou bairro, abaixar palavra demais arrisca mais do que ganha.
+  const MINUSCULAS_CAT = /^(ao|aos|com|por|para|pela|pelo|pelas|pelos|nos|nas|no|na|ou|sem|sob|entre)$/;
+  const capCat = s => cap(String(s).replace(/\s+/g, ' ').trim()
+                                   .replace(/:(?=\S)/g, ': '))
+    .replace(/[\wÀ-ú]+/g, (w, onde) => {
+      const u = w.toUpperCase();
+      if(SIGLAS_CAT.test(u)) return u;
+      const b = w.toLowerCase();
+      // `onde` guarda a posicao: a primeira palavra nunca e abaixada, senao
+      // um rotulo que comecasse por "No" ou "Com" abriria em minuscula.
+      // Hoje nenhum dos 99 comeca assim, mas a competencia que vem pode.
+      if(onde > 0 && MINUSCULAS_CAT.test(b)) return b;
+      const a = ACENTOS[b];
+      if(!a) return w;
+      // conserva a caixa que o cap() decidiu — inicial maiúscula ou minúscula
+      return w[0] === u[0] ? a[0].toUpperCase() + a.slice(1) : a;
+    });
 
   // Quais estabelecimentos há em cada município, montado uma vez.
   const estabPorMun = new Map();
@@ -1663,7 +1732,7 @@
 
   function encheAssistencial(){
     const c = contaFacetas();
-    const alfab = lista => lista.map((t,k) => [k, cap(t)])
+    const alfab = lista => lista.map((t,k) => [k, capCat(t)])
                                 .sort((a,b) => a[1].localeCompare(b[1],'pt'));
     encheContado(g('fTipo'), 'Todos os ' + catalogo.tipos.length + ' tipos',
       alfab(catalogo.tipos), c.tipo, recorte.tipo);
@@ -1672,7 +1741,7 @@
     // O turno nao e ordenado por nome: a ordem do catalogo vai do horario mais
     // curto ao mais longo, e alfabetar isso embaralharia uma escala.
     encheContado(g('fTurno'), 'Qualquer turno',
-      catalogo.turnos.map((t,k) => [k, cap(t)]), c.turno, recorte.turno);
+      catalogo.turnos.map((t,k) => [k, capCat(t)]), c.turno, recorte.turno);
     encheContado(g('fEsfera'), 'Pública e privada conveniada',
       [[0, 'Administração pública'], [1, 'Privada conveniada']], c.esfera, recorte.esfera);
   }
@@ -1739,13 +1808,22 @@
     // continua clara, e por isso os pinos continuam nos tons escuros — eles
     // são desenhados sobre o mapa, não sobre o painel, e quem decide o
     // contraste deles é o fundo que está embaixo.
-    g('bTema').onclick = () => {
+    // A escolha fica guardada. Antes ela morria na recarga: quem preferia o
+    // escuro voltava ao claro a cada visita, e o botao ainda anunciava
+    // "Tema escuro" com o tema escuro ligado — o estado do botao era calculado
+    // so no clique, nunca na partida.
+    const poeTema = escuro => {
       const bt = g('bTema');
-      const escuro = document.documentElement.getAttribute('data-tema') !== 'escuro';
       document.documentElement.setAttribute('data-tema', escuro ? 'escuro' : 'claro');
       bt.setAttribute('aria-pressed', String(escuro));
       bt.setAttribute('aria-label', escuro ? 'Tema claro' : 'Tema escuro');
       bt.title = escuro ? 'Tema claro' : 'Tema escuro';
+    };
+    poeTema(document.documentElement.getAttribute('data-tema') === 'escuro');
+    g('bTema').onclick = () => {
+      const escuro = document.documentElement.getAttribute('data-tema') !== 'escuro';
+      poeTema(escuro);
+      try{ localStorage.setItem('tema', escuro ? 'escuro' : 'claro'); }catch(e){}
     };
 
     const gav = g('avancado'), bAv = g('bAvancado');
@@ -1991,7 +2069,7 @@
       return itemLista(x.uf, x.nome, 'Bairro em ' + x.mun + ' (' + x.uf + ')', x.n, aoClicar);
     const m = munDe[x.i];
     return itemLista(catalogo.ufs[catalogo.munUF[m]], cap(ficha.nome[x.i]) || '—',
-      cap(catalogo.tipos[tipoDe[x.i]]) + ' em ' + cap(catalogo.muns[m]),
+      capCat(catalogo.tipos[tipoDe[x.i]]) + ' em ' + cap(catalogo.muns[m]),
       undefined, aoClicar);
   }
   function abreAchado(x){
@@ -2125,7 +2203,7 @@
     m.appendChild(pt); b.appendChild(m);
     const t = el('div','txt');
     t.appendChild(el('b', null, ficha ? (cap(ficha.nome[i]) || '—') : '…'));
-    t.appendChild(el('span', null, cap(catalogo.tipos[tipoDe[i]])));
+    t.appendChild(el('span', null, capCat(catalogo.tipos[tipoDe[i]])));
     b.appendChild(t);
     b.onclick = () => vaiParaEstab(i);
     li.appendChild(b);
@@ -2303,7 +2381,7 @@
     const capa = el('div','capa');
     capa.appendChild(el('h2', null, ficha ? (cap(ficha.nome[i]) || '—')
                                           : 'Carregando dados do estabelecimento…'));
-    capa.appendChild(el('div','escopo', cap(catalogo.tipos[tipoDe[i]]) + ', ' +
+    capa.appendChild(el('div','escopo', capCat(catalogo.tipos[tipoDe[i]]) + ', ' +
       (estab.esfera[i] === 0 ? 'administração pública' : 'privada conveniada')));
     corpo.appendChild(capa);
 
@@ -2319,7 +2397,7 @@
     ul.appendChild(itemFicha('Telefone', ficha ? ficha.tel[i].trim() : '',
                              'Sem telefone cadastrado'));
     ul.appendChild(itemFicha('Horário',
-      turnoDe[i] >= 0 ? cap(catalogo.turnos[turnoDe[i]]) : ''));
+      turnoDe[i] >= 0 ? capCat(catalogo.turnos[turnoDe[i]]) : ''));
     s1.appendChild(ul);
     corpo.appendChild(s1);
 
@@ -2335,7 +2413,7 @@
     if(S.length){
       const s3 = secao('Serviços especializados (' + S.length + ')');
       const cx = el('div','etiquetas');
-      S.map(k => cap(catalogo.servicos[k])).sort((a,b) => a.localeCompare(b,'pt'))
+      S.map(k => capCat(catalogo.servicos[k])).sort((a,b) => a.localeCompare(b,'pt'))
        .forEach(t => cx.appendChild(el('span','etiqueta', t)));
       s3.appendChild(cx);
       corpo.appendChild(s3);
