@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """Casa as regiões de saúde com os municípios do mapa e escreve web/regioes.json.
 
-O casamento é por nome+UF porque o índice de município do mapa não guarda o
-código do IBGE — ele vem de CO_MUNICIPIO_GESTOR no CNES, e é esse código que a
-tabela de regiões usa. Os nomes são normalizados dos dois lados.
+O casamento é pelo código do IBGE, que o trata_cnes.py entrega em munCod — o
+mesmo código que a tabela de regiões usa. Sem normalizar nome e sem passar
+pela base bruta do CNES, de que este script não precisa mais.
 
     python gera_regioes.py
 """
@@ -11,8 +11,6 @@ import gzip
 import json
 import os
 import sys
-import unicodedata
-import csv
 
 sys.stdout.reconfigure(line_buffering=True, encoding="utf-8")
 
@@ -21,7 +19,6 @@ WEB = os.path.join(RAIZ, "web")
 SAIDA = os.path.join(WEB, "regioes.json")
 DADOS = os.path.join(RAIZ, "dados_tratados.json")
 FONTE = os.path.join(RAIZ, "insumos", "regiao_saude.json")
-CNES = os.path.join(RAIZ, "BASE_DE_DADOS_CNES_202606", "tbMunicipio202606.csv")
 
 MINUSCULAS = {"de", "da", "do", "das", "dos", "e", "a", "o", "em", "no", "na"}
 
@@ -33,10 +30,6 @@ def titulo(s):
         out.append(b if i and b in MINUSCULAS else b[:1].upper() + b[1:])
     return " ".join(out)
 
-
-def norma(s):
-    s = unicodedata.normalize("NFD", s.upper())
-    return "".join(c for c in s if unicodedata.category(c) != "Mn").strip()
 
 
 def main():
@@ -50,44 +43,32 @@ def main():
     print("lendo dados_tratados.json")
     D = json.load(open(DADOS, encoding="utf-8"))
     muns, ufs, munUF = D["muns"], D["ufs"], D["munUF"]
+    munCod = D["munCod"]
     print("  %d municípios no mapa" % len(muns))
 
-    print("lendo tbMunicipio para recuperar o código de cada um")
-    pn = {}
-    with open(CNES, encoding="latin-1") as f:
-        for r in csv.DictReader(f, delimiter=";"):
-            pn[(norma(r["NO_MUNICIPIO"]), r["CO_SIGLA_ESTADO"].strip())] = \
-                r["CO_MUNICIPIO"].strip()
-
-    # Segunda chave: o nome que a própria API usa, no formato "PA - BELEM".
-    # O CNES e o IBGE discordam da grafia de alguns municípios — "São Tomé das
-    # Letras" contra "São Thomé das Letras" —, e só a primeira chave perdia 16.
-    porNomeAPI = {}
-    for x in API:
-        nm = x["municipio"]
-        uf, _, resto = nm.partition(" - ")
-        porNomeAPI[(norma(resto or nm), uf.strip())] = x
-
-    print("casando")
+    # O casamento é pelo código do IBGE, que o trata_cnes.py entrega junto.
+    # Antes era por nome, com uma ponte pelo tbMunicipio do CNES para traduzir
+    # nome em código — e o nome é justamente o que não bate: o mapa mostra a
+    # grafia do IBGE, enquanto o CNES e esta tabela usam outra, concordando
+    # entre si. Eram 11 municípios perdidos por THOME contra TOME, DOS contra
+    # DO, EUSEBIA contra EUZEBIA. Por número não há grafia que discorde, e de
+    # quebra sai a dependência dos 2,82 GB da base bruta, que este script
+    # precisava ter em disco só para fazer essa tradução.
+    print("casando por código do IBGE")
     ligado, fora = {}, []
-    porSegunda = 0
-    for i, nm in enumerate(muns):
-        uf = ufs[munUF[i]]
-        c = pn.get((norma(nm), uf))
-        x = porCod.get(c) if c else None
-        if not x:
-            x = porNomeAPI.get((norma(nm), uf))
-            if x:
-                porSegunda += 1
+    for i, cod in enumerate(munCod):
+        x = porCod.get(cod)
         if x:
             ligado[i] = x
         else:
-            fora.append(nm)
-    print("  recuperados pela segunda chave: %d" % porSegunda)
+            fora.append(muns[i] + " (" + ufs[munUF[i]] + ", " + cod + ")")
     print("  casaram %d de %d (%.1f%%) · fora %d"
           % (len(ligado), len(muns), 100 * len(ligado) / len(muns), len(fora)))
-    if fora:
-        print("    %s%s" % (", ".join(fora[:6]), " ..." if len(fora) > 6 else ""))
+    # Quem sobra não é erro de grafia: é município que a tabela não tem. Ela
+    # foi montada com 5.570, e o mapa chega a 5.571 — municípios instalados
+    # depois dela não têm região cadastrada em lugar nenhum.
+    for n in fora:
+        print("    sem região na tabela: %s" % n)
 
     # índices estáveis: a ordem é a do código, para o arquivo não mudar à toa
     codsR = sorted({x["codigo_regiao_saude"] for x in ligado.values()})

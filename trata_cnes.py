@@ -202,6 +202,11 @@ for r in ler("rlEstabServClass"):
 # ------------------------------------------------------- estabelecimentos ---
 ufs, iuf = [], {}
 muns, imun, mun_uf = [], {}, []
+# O código do IBGE de cada município, na mesma ordem de `muns`. Ele já é a
+# chave do índice aqui dentro; levá-lo adiante deixa quem monta o site casar
+# o município por número em vez de por nome — e nome, entre IBGE e CNES, não
+# bate sempre ("São Tomé" contra "São Thomé", "do" contra "dos Carajás").
+mun_cod = []
 tipos, itipo = [], {}
 turnos, iturno = [], {}
 servicos, iserv = [], {}
@@ -264,6 +269,7 @@ for r in ler("tbEstabelecimento"):
     nm = mun_acento.get(cm, nm)
     if cm not in imun:
         imun[cm] = len(muns); muns.append(nm or cm); mun_uf.append(idx(sg, ufs, iuf))
+        mun_cod.append(cm)
     tp = r["TP_UNIDADE"].strip()
     tn = r["CO_TURNO_ATENDIMENTO"].strip()
     endereco = ", ".join(x for x in [limpa(r["NO_LOGRADOURO"]), limpa(r["NU_ENDERECO"])] if x)
@@ -486,7 +492,7 @@ dados = {
     "serv": "|".join(",".join(str(s) for s in p["serv"]) for p in pts),
     "leitos": {str(i): p["leitos"] for i, p in enumerate(pts) if p["leitos"]},
     "tipos": tipos, "turnos": turnos, "servicos": servicos,
-    "muns": muns, "munUF": mun_uf, "ufs": ufs,
+    "muns": muns, "munCod": mun_cod, "munUF": mun_uf, "ufs": ufs,
     "competencia": COMP,
 }
 
