@@ -505,7 +505,7 @@
        nenhum dos dois sai. O que sai é o espaço entre eles. */
     .alca{
       display:block;position:relative;flex:none;border:0;background:none;
-      width:100%;padding:14px 0 11px;line-height:1.2;
+      width:100%;padding:14px 38px 11px;line-height:1.2;
       font:inherit;color:var(--ink);cursor:grab;touch-action:none;
     }
     .alca:active{cursor:grabbing}
@@ -515,7 +515,35 @@
       transition:background .15s ease;
     }
     .alca:hover .tracinho,.alca:active .tracinho{background:var(--muted)}
-    .alca .titulo{font-size:13.5px;font-weight:600;letter-spacing:-.01em}
+    /* Na ponta direita, onde se espera um controle de abrir. Gira meia volta
+       com a folha aberta: a mesma seta passa a dizer "fecha". */
+    .alca .seta{
+      position:absolute;right:13px;top:50%;transform:translateY(-50%);
+      width:19px;height:19px;fill:none;stroke:var(--muted);stroke-width:2.2;
+      stroke-linecap:round;stroke-linejoin:round;transition:transform .22s ease;
+    }
+    .folha:not(.recolhida) .alca .seta{transform:translateY(-50%) rotate(180deg)}
+    .alca:hover .seta,.alca:active .seta{stroke:var(--ink2)}
+    /* O rotulo deixa de ser uma palavra fixa e passa a dizer o lugar aberto.
+       Nome em destaque, contagem em tom menor: o nome responde "o que tem aqui
+       dentro" e a contagem da o motivo de puxar. Numa linha so, para a folha
+       recolhida nao crescer; o que nao couber vira reticencia. */
+    .alca .titulo{
+      display:flex;justify-content:center;align-items:baseline;
+      font-size:13.5px;letter-spacing:-.01em;white-space:nowrap;
+      max-width:100%;margin:0 auto;
+    }
+    /* Quem encurta é o NOME, não a contagem: num nome comprido a reticência
+       comia "540 estabelecimentos", que é justamente o que dá motivo para
+       puxar a folha. O nome ainda se reconhece pelo começo; o número, não. */
+    .alca .titulo b{
+      font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;
+    }
+    /* O espaço vem da margem, e não do texto: num contêiner flex o espaço
+       inicial de um item é descartado, e saía "Brasil· 108.558". */
+    .alca .titulo .conta{
+      font-weight:400;color:var(--muted);flex:none;margin-left:.34em;
+    }
     /* O cabeçalho já separa. Recolhida, o risco do corpo virava um traço solto
        no pé da tela, embaixo do rótulo. */
     .corpo{border-top:0}
@@ -639,7 +667,12 @@
     <button class="alca" id="alca" type="button" aria-expanded="false" aria-controls="corpo"
             aria-label="Abrir o painel">
       <span class="tracinho" aria-hidden="true"></span>
-      <span class="titulo">Painel</span>
+      <!-- O tracinho diz "arrasta"; a seta diz "abre". Sao vocabularios
+           diferentes, e quem nunca usou uma folha dessas so le o segundo. -->
+      <svg class="seta" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M6 15l6-6 6 6"/>
+      </svg>
+      <span class="titulo">Painel</span><!-- trocado pela prévia ao pintar -->
     </button>
     <div class="corpo" id="corpo"></div>
   </div>
@@ -1495,6 +1528,9 @@
   // Declarada aqui, antes de quem a lê: `let` não sobe, e aplicaRecorte vem
   // antes de capaDoLugar no arquivo. Ver o uso lá embaixo.
   let repintandoPorFiltro = false;
+  // O texto da folha recolhida. Declarado aqui, longe de quem o escreve, pelo
+  // mesmo motivo da trava acima: `let` nao sobe, e limpaCorpo vem antes.
+  let previa = '';
   let esperaAnuncio = null;
   function anuncia(texto){
     clearTimeout(esperaAnuncio);
@@ -1962,7 +1998,50 @@
   // entra na mesma tarefa — a posição antiga seguia válida e grudava. Quem
   // descia até o fim da lista de um município e escolhia outro lugar caía
   // no meio da vista nova, sem ter rolado nada.
-  const limpaCorpo = () => { corpo.textContent = ''; corpo.scrollTop = 0; };
+  // A folha recolhida dizia so "Painel", e quem nunca viu uma folha dessas nao
+  // descobre que ha conteudo atras dela. Agora ela mostra o lugar aberto e
+  // quantos estabelecimentos ele tem — a mesma informacao que esta logo abaixo,
+  // adiantada para quem ainda nao abriu.
+  //
+  // Le da arvore em vez de receber por parametro: sao oito funcoes pintando o
+  // painel, e todas terminam com um h2 e, quase sempre, o numero grande. Uma
+  // leitura serve as oito, e a nona nasce funcionando.
+  function preveNaAlca(){
+    const nome = corpo.querySelector('h2');
+    const num  = corpo.querySelector('.grande b');
+    const uni  = corpo.querySelector('.grande span');
+    const alvo = document.querySelector('.alca .titulo');
+    if(!alvo) return;
+    previa = nome ? nome.textContent.trim()
+                    + (num ? ', ' + num.textContent.trim()
+                             + ' ' + (uni ? uni.textContent.trim() : '') : '')
+                  : '';
+    alvo.textContent = '';
+    if(!nome){ alvo.textContent = 'Painel'; rotuloDaAlca(); return; }
+    alvo.appendChild(el('b', null, nome.textContent.trim()));
+    if(num) alvo.appendChild(el('span', 'conta',
+      ' \u00b7 ' + num.textContent.trim() + ' ' + (uni ? uni.textContent.trim() : '')));
+    rotuloDaAlca();
+  }
+
+  // O nome acessivel do botao junta o estado — aberto ou fechado — com a
+  // previa. Sem isso o leitor de tela anunciaria "Abrir o painel" e nada mais,
+  // perdendo justamente o que a folha passou a mostrar.
+  function rotuloDaAlca(){
+    const a = document.getElementById('alca');
+    if(!a) return;
+    const aberta = a.getAttribute('aria-expanded') === 'true';
+    a.setAttribute('aria-label',
+      (aberta ? 'Recolher o painel' : 'Abrir o painel') + (previa ? ': ' + previa : ''));
+  }
+
+  const limpaCorpo = () => {
+    corpo.textContent = ''; corpo.scrollTop = 0;
+    // Em microtarefa: a vista inteira e pintada de uma vez, de forma sincrona,
+    // entao a fila roda logo depois de o conteudo estar no lugar. Chamar aqui
+    // mesmo leria o painel vazio que acabamos de esvaziar.
+    queueMicrotask(preveNaAlca);
+  };
   let vista = 'inicio';           // inicio | resultados | lugar
 
   const el = (t, cls, txt) => {
@@ -3359,7 +3438,7 @@
     document.documentElement.style.setProperty('--folha', (v * 100).toFixed(2) + '%');
     const aberta = v > p[0] + 0.02;
     alca.setAttribute('aria-expanded', String(aberta));
-    alca.setAttribute('aria-label', aberta ? 'Recolher o painel' : 'Abrir o painel');
+    rotuloDaAlca();
   };
   const vaiPara = i => {
     parada = Math.max(0, Math.min(2, i));
