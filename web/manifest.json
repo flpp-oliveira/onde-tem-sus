@@ -1,0 +1,33 @@
+{
+  "name": "Onde Tem SUS — a rede do SUS no mapa",
+  "short_name": "Onde Tem SUS",
+  "description": "Mapa dos estabelecimentos de saúde com atendimento pelo SUS no Brasil, a partir do CNES/DATASUS.",
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#eef1f4",
+  "theme_color": "#15589e",
+  "icons": [
+    {
+      "src": "/icone-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icone-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icone-mascara-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

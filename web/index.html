@@ -5,6 +5,18 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Onde Tem SUS — a rede do SUS no mapa, 06/2026</title>
 <meta name="description" content="Mapa dos 108.558 estabelecimentos de saúde ativos com atendimento pelo SUS no Brasil, a partir do CNES/DATASUS, competência 06/2026.">
+<!-- Instalavel na tela inicial: com o manifesto o Chrome oferece "Instalar
+     aplicativo" e abre em janela propria, sem barra de endereco. O icone sai
+     da mesma rosca desenhada na caixa de busca. -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#15589e">
+<link rel="icon" href="icone-192.png" sizes="192x192" type="image/png">
+<!-- O iPhone ignora o manifesto para o icone e o modo de janela; estas tres
+     linhas sao a forma que ele entende. -->
+<link rel="apple-touch-icon" href="icone-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Onde Tem SUS">
+<meta name="mobile-web-app-capable" content="yes">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.min.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

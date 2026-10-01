@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Página não encontrada — Onde Tem SUS</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="/icone-192.png" sizes="192x192" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+  /* Os mesmos tokens do mapa: a página de erro não é outro produto. */
+  :root{
+    --surface:#fff; --plane:#eef1f4;
+    --ink:#111a26; --ink2:#44525f; --muted:#5f6b76;
+    --line:#dde3e8; --border:rgba(17,26,38,.14);
+    --pub:#15589e; --conv:#9b2242;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    font:15px/1.65 "IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+    color:var(--ink);background:var(--plane);-webkit-font-smoothing:antialiased;
+    min-height:100vh;display:flex;align-items:center;justify-content:center;
+    padding:24px;
+  }
+  a:focus-visible{outline:2px solid var(--pub);outline-offset:2px}
+
+  .caixa{
+    max-width:460px;background:var(--surface);border-radius:16px;padding:34px 30px;
+    box-shadow:0 1px 2px rgba(17,26,38,.05), 0 10px 30px rgba(17,26,38,.12);
+  }
+  .marca{display:flex;align-items:center;gap:11px;margin-bottom:26px}
+  .marca svg{width:32px;height:32px;flex:none}
+  .marca span{font-size:18px;font-weight:500;letter-spacing:-.01em}
+  .marca b{font-weight:600}
+
+  h1{font-size:24px;font-weight:600;letter-spacing:-.02em;line-height:1.25;margin:0 0 10px}
+  p{margin:0 0 18px;color:var(--ink2)}
+  .volta{
+    display:inline-block;background:var(--pub);color:#fff;text-decoration:none;
+    border-radius:10px;padding:11px 18px;font-weight:600;font-size:14px;
+  }
+  .volta:hover{background:#0d3f78}
+</style>
+</head>
+<body>
+  <main class="caixa">
+    <div class="marca">
+      <!-- A mesma rosca do mapa: 75,3% pública, 24,7% conveniada. -->
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <g transform="rotate(-90 12 12)" fill="none" stroke-width="4.4">
+          <circle cx="12" cy="12" r="9" pathLength="100" stroke="var(--pub)"
+                  stroke-dasharray="75.3 24.7"/>
+          <circle cx="12" cy="12" r="9" pathLength="100" stroke="var(--conv)"
+                  stroke-dasharray="24.7 75.3" stroke-dashoffset="-75.3"/>
+        </g>
+      </svg>
+      <span>Onde Tem <b>SUS</b></span>
+    </div>
+    <h1>Esta página não existe</h1>
+    <p>O endereço digitado não corresponde a nada aqui. Pode ter sido um erro de
+       digitação, ou um link antigo.</p>
+    <a class="volta" href="/">Ir para o mapa</a>
+  </main>
+</body>
+</html>
