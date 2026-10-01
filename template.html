@@ -198,6 +198,28 @@ canvas.arrastando{cursor:grabbing}
   border-radius:6px;padding:14px 16px;display:none;
 }
 .card.on{display:block}
+/* Sumário do lugar apontado no mapa. Mesma caixa da ficha e no mesmo canto:
+   são a mesma pergunta em escalas diferentes — o que há AQUI —, e alternam,
+   nunca convivem. */
+.lugar{
+  position:absolute;left:12px;top:12px;width:322px;max-height:calc(100% - 24px);
+  overflow:auto;background:var(--surface);border:1px solid var(--border);
+  border-radius:6px;padding:14px 16px;
+}
+.lugar[hidden]{display:none}
+.lugar h2{font-size:15px;margin:0 22px 2px 0;line-height:1.3;font-weight:650}
+.lugar .escopo{font-size:11.5px;color:var(--muted);margin-bottom:12px}
+.lugTotal{display:flex;align-items:baseline;gap:7px;margin-bottom:12px}
+.lugTotal b{font-size:27px;font-weight:600;letter-spacing:-.02em;
+  font-variant-numeric:tabular-nums;line-height:1}
+.lugTotal span{font-size:12px;color:var(--ink2)}
+.lugLinhas{list-style:none;margin:0;padding:0;font-size:12.5px}
+.lugLinhas li{display:flex;align-items:center;gap:8px;padding:7px 0;
+  border-top:1px solid var(--line)}
+.lugLinhas li i{width:8px;height:8px;border-radius:2px;flex:none}
+.lugLinhas li span{flex:1;color:var(--ink2)}
+.lugLinhas li b{font-weight:600;font-variant-numeric:tabular-nums}
+.lugLinhas li em{font-style:normal;color:var(--muted);font-size:11px;margin-left:4px}
 .card h2{font-size:14px;margin:0 22px 4px 0;line-height:1.3;font-weight:650}
 .tag{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--ink2);margin-bottom:10px}
 .fechar{position:absolute;right:8px;top:8px;border:0;background:none;color:var(--muted);
@@ -444,6 +466,16 @@ dd .semdado{color:var(--muted)}
        aponta: quem não usa mouse não tem como produzi-lo, e o painel já diz os
        mesmos números do recorte. -->
   <div class="rotuloUF" id="rotuloUF" aria-hidden="true" hidden></div>
+  <!-- Sumário do estado ou município escolhido no mapa. Não é o recorte: o
+       recorte continua nos seletores do painel. Este cartão só descreve o
+       lugar em que se clicou. -->
+  <div class="lugar" id="lugar" role="region" aria-label="Resumo do lugar escolhido" hidden>
+    <button class="fechar" id="bFechaLugar" title="Fechar o resumo" aria-label="Fechar o resumo do lugar">×</button>
+    <h2 id="lugNome"></h2>
+    <div class="escopo" id="lugEscopo"></div>
+    <div class="lugTotal"><b id="lugTotal"></b><span id="lugTotalTxt">estabelecimentos</span></div>
+    <ul class="lugLinhas" id="lugLinhas"></ul>
+  </div>
   <!-- tabindex="-1" para receber foco por script ao abrir: sem isso, quem usa
        leitor de tela não é avisado de que a ficha apareceu -->
   <div class="card" id="card" role="dialog" aria-label="Ficha do estabelecimento" tabindex="-1">
@@ -620,6 +652,46 @@ const merc = la => { const r = la*Math.PI/180;
   return (1 - Math.log(Math.tan(r)+1/Math.cos(r))/Math.PI)/2; };
 const px = new Float64Array(N), py = new Float64Array(N);
 for(let i=0;i<N;i++){ px[i] = (lon[i]+180)/360; py[i] = merc(lat[i]); }
+// Onde fica cada município e que pedaço de mundo ele ocupa — as duas coisas
+// medidas por PERCENTIL, não por extremo nem por média.
+//
+// A âncora do nome é a MEDIANA das coordenadas dos estabelecimentos, que cai
+// na sede. Era o centroide de área do polígono, e centroide não é sede: Palmas
+// tem a sede na beira do rio e o território esticado para leste, e o nome saía
+// a 80 km do lugar, discordando do topônimo da carta do OpenStreetMap por
+// baixo. Medido contra a sede do IBGE, a mediana erra de 0,3 a 4,3 km; a média
+// erra até 9,7 km (Altamira).
+//
+// O enquadramento usa os percentis 10 e 90, não o mínimo e o máximo. A caixa
+// dos extremos é governada por dois postos rurais: em Porangatu o centro dela
+// caía a 682 px de onde estão os estabelecimentos, numa tela de 820 — clicar
+// no nome levava a uma tela vazia. O mesmo erro da média, repetido.
+//
+// Tudo sai de uma ordenação só, por município, feita uma vez: as coordenadas
+// não mudam com o filtro. E como o cálculo é aqui, a página não carrega mais a
+// tabela de âncoras que a build mandava — 24,8 KB comprimidos a menos.
+const NM = D.muns.length;
+const rx = new Float64Array(NM), ry = new Float64Array(NM);      // sede (mediana)
+const qx0 = new Float64Array(NM), qx1 = new Float64Array(NM);    // percentis 10 e 90
+const qy0 = new Float64Array(NM), qy1 = new Float64Array(NM);
+{
+  const ini = new Int32Array(NM + 1);
+  for(let i=0;i<N;i++) ini[mun[i] + 1]++;
+  for(let m=0;m<NM;m++) ini[m+1] += ini[m];
+  const ord = new Int32Array(N), pos = ini.slice(0, NM);
+  for(let i=0;i<N;i++) ord[pos[mun[i]]++] = i;
+  for(let m=0;m<NM;m++){
+    const a = ini[m], n = ini[m+1] - a;
+    if(n === 0) continue;
+    const xs = new Float64Array(n), ys = new Float64Array(n);
+    for(let k=0;k<n;k++){ xs[k] = px[ord[a+k]]; ys[k] = py[ord[a+k]]; }
+    xs.sort(); ys.sort();
+    const lo = Math.floor(n*0.1), hi = Math.min(n-1, Math.ceil(n*0.9));
+    rx[m] = xs[n >> 1];  ry[m] = ys[n >> 1];
+    qx0[m] = xs[lo]; qx1[m] = xs[hi];
+    qy0[m] = ys[lo]; qy1[m] = ys[hi];
+  }
+}
 function projetaAneis(fs){
   const out = [];
   for(const f of fs) for(const anel of f.a){
@@ -857,6 +929,19 @@ let ufSel = -1, munSel = -1, bairroSel = -1;
 // totais por município sem o recorte de município/bairro, para o rótulo.
 // Vetores tipados e não objetos: são 5.570 posições, refeitas a cada filtro.
 let munLivreN = null, munLivreP = null;
+// Que tipos e que serviços existem em cada lugar, como máscara de bits: são
+// 28 tipos e 64 serviços em toda a base, então cabem em um e em dois inteiros.
+// Contar por conjunto (Set) por município seria 5.571 objetos refeitos a cada
+// mudança de recorte; assim é um OR por estabelecimento.
+const munTipo = new Int32Array(D.muns.length);
+const munServA = new Int32Array(D.muns.length), munServB = new Int32Array(D.muns.length);
+const ufTipo = new Int32Array(D.ufs.length);
+const ufServA = new Int32Array(D.ufs.length), ufServB = new Int32Array(D.ufs.length);
+function bits(v){
+  v = v - ((v >> 1) & 0x55555555);
+  v = (v & 0x33333333) + ((v >> 2) & 0x33333333);
+  return (((v + (v >> 4)) & 0x0f0f0f0f) * 0x01010101) >> 24;
+}
 // grade de aglutinação reaproveitada entre quadros, para não alocar por desenho
 let gradeCols = 0, gradeRows = 0, gN, gX, gY, gP, gX0, gY0, gX1, gY1;
 // Bolhas efetivamente desenhadas no último quadro: centro e raio na tela, e a
@@ -1217,7 +1302,19 @@ function desenhaDivisasMun(){
 // clara, mesmo no tema escuro, então as marcas são ajustadas à superfície que
 // existe de fato — mesmo motivo pelo qual o mapa nasce claro.
 const caminhoSel = {chave:'', path:null};
+// O FOCO vem antes do recorte. São duas coisas diferentes desde que o clique
+// deixou de filtrar: o recorte é o que os seletores do painel escolhem, e o
+// foco é o lugar em que se clicou no mapa. Quando há foco é ele que o contorno
+// mostra, porque foi o gesto mais recente do usuário; sem foco, o recorte.
 function aneisSelecionados(){
+  if(focoMun >= 0 && malhaMun){
+    const m = malhaMun.find(x => x.i === focoMun);
+    if(m) return ['f'+focoMun, m.aneis];
+  }
+  if(focoMun < 0 && focoUF >= 0){
+    const u = ufsGeo.find(x => x.i === focoUF);
+    if(u) return ['g'+focoUF, u.aneis];
+  }
   if(munSel >= 0 && malhaMun){
     const m = malhaMun.find(x => x.i === munSel);
     if(m) return ['m'+munSel, m.aneis];
@@ -1288,12 +1385,15 @@ function poeRotulos(cand, alturaMeia, pinta){
   for(const c of cand){
     if(n >= MAX_ROTULOS) break;
     const hw = c.larg/2 + 3;
+    // meia-altura por candidato: os patamares têm corpos diferentes, e usar
+    // a maior para todos abriria buraco em volta dos nomes pequenos
+    const hh = c.hh || alturaMeia;
     let bate = false;
     for(const p of postos){
-      if(Math.abs(p.x - c.x) < hw + p.hw && Math.abs(p.y - c.y) < alturaMeia + p.hh){ bate = true; break; }
+      if(Math.abs(p.x - c.x) < hw + p.hw && Math.abs(p.y - c.y) < hh + p.hh){ bate = true; break; }
     }
     if(bate) continue;
-    postos.push({x:c.x, y:c.y, hw, hh:alturaMeia});
+    postos.push({x:c.x, y:c.y, hw, hh});
     n++;
     pinta(c);
   }
@@ -1309,16 +1409,29 @@ function poeRotulos(cand, alturaMeia, pinta){
 //
 // Caixa alta e espaçada, contra a caixa normal dos municípios: são duas
 // hierarquias diferentes e precisam se distinguir sem depender da cor.
-const CORPO_ROTULO_UF = 12;
+const CORPO_ROTULO_UF = 13.5;
+let rotulosUFNaTela = [];
+function rotuloUFSob(mx, my){
+  for(const r of rotulosUFNaTela)
+    if(Math.abs(r.x - mx) <= r.hw && Math.abs(r.y - my) <= r.hh) return r.i;
+  return -1;
+}
+// Os nomes de estado valem em TODA escala em que o estado ainda cabe na tela,
+// e não só depois de um ser escolhido. Na primeira vista do mapa eles são a
+// única coisa que diz o que é clicável — sem eles o país abre mudo.
 function desenhaRotulosUF(){
-  if(!ufFiltrada || animando) return;
+  rotulosUFNaTela = [];
+  // Teto: na escala de rua o centroide do estado está fora do campo, e
+  // ancoraVisivel jogaria a sigla no meio de uma cidade — um rótulo enorme
+  // sobre um bairro, dizendo o que ninguém precisa saber ali.
+  if(animando || NIVEL(z) > 8) return;
   ctx.save();
   ctx.font = '600 ' + CORPO_ROTULO_UF + 'px system-ui,-apple-system,sans-serif';
   try{ ctx.letterSpacing = '1.2px'; }catch(_){}    // ignorado onde não existe
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   const cand = [];
   for(const u of ufsGeo){
-    if(u.i === ufSel) continue;
+    if(u.i === ufSel || u.i === focoUF) continue;
     if(u.peso*z < 46) continue;
     const a = ancoraVisivel(u);
     if(!a) continue;
@@ -1328,15 +1441,123 @@ function desenhaRotulosUF(){
     }
     cand.push({texto:u.texto, larg:u.larg, x:a.x, y:a.y, peso:u.peso, i:u.i});
   }
+  rotulosUFNaTela = [];
   poeRotulos(cand, CORPO_ROTULO_UF*0.8, c => {
     ctx.lineWidth = 3.2; ctx.lineJoin = 'round';
     ctx.strokeStyle = 'rgba(255,255,255,.92)';
     ctx.strokeText(c.texto, c.x, c.y);
     ctx.fillStyle = c.i === ufRealce ? 'rgba(20,18,14,.95)' : 'rgba(92,86,74,.85)';
     ctx.fillText(c.texto, c.x, c.y);
+    rotulosUFNaTela.push({i:c.i, x:c.x, y:c.y, hw:c.larg/2 + 6,
+                          hh:CORPO_ROTULO_UF*0.8 + 6});
   });
   try{ ctx.letterSpacing = '0px'; }catch(_){}
   ctx.restore();
+}
+// ---- hierarquia dos nomes de cidade ----------------------------------------
+// Antes o nome só existia depois de escolher um estado, porque vinha da malha
+// municipal daquele estado, e a régua era a ÁREA do município — quem aparecia
+// primeiro era o mais extenso, não o mais importante. Altamira antes de Osasco.
+//
+// Agora a régua é o patamar do IBGE, calculado na build: capital, sede de
+// região intermediária, sede de região imediata, demais. A âncora vem junto,
+// então o país inteiro se rotula sem buscar malha nenhuma.
+//
+// Os níveis foram calibrados medindo o Google Maps na mesma tela e no mesmo
+// centro: no 5 só capitais; no 6 entram Uberlândia, Campinas e Juiz de Fora,
+// todas sedes intermediárias; no 7, Patos de Minas, Araxá e Barretos, todas
+// sedes imediatas. Um nível, uma classe nova.
+const rotP = D.rotP;
+const NIVEL_PATAMAR = [Infinity, 4.8, 6.0, 7.5, 8.5];
+const CORPO_PATAMAR = [0, 15, 14, 13, 12.5];
+const PESO_PATAMAR  = [0, 4, 3, 2, 1];
+const fontePatamar = p => (p <= 2 ? '600 ' : '500 ') + CORPO_PATAMAR[p] +
+                          'px system-ui,-apple-system,sans-serif';
+// medida uma vez por município: measureText num laço por quadro é o tipo de
+// custo que não se vê no código e aparece no dedo
+const largRot = new Float32Array(D.muns.length).fill(-1);
+const textoRot = new Array(D.muns.length);
+// caixas dos nomes efetivamente postos no último quadro — é contra elas que
+// o clique mira, e por isso precisa ser o que está DE FATO na tela
+let rotulosNaTela = [];
+// qual nome está sob o ponteiro, e qual foi escolhido: é o que dá ao rótulo
+// os dois estados que fazem dele um botão, e não um texto solto no mapa
+let rotuloRealce = -1, focoMun = -1, focoUF = -1;
+function desenhaRotulosCidade(){
+  rotulosNaTela = [];
+  if(animando) return;
+  const nv = NIVEL(z);
+  ctx.save();
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const cand = [];
+  for(let i=0;i<rotP.length;i++){
+    const p = rotP.charCodeAt(i) - 48;
+    if(p < 1 || nv < NIVEL_PATAMAR[p]) continue;   // 0 = município sem malha
+    const x = rx[i]*z + ox; if(x < -70 || x > W+70) continue;
+    const y = ry[i]*z + oy; if(y < -24 || y > H+24) continue;
+    if(largRot[i] < 0){
+      textoRot[i] = cap(D.muns[i]);
+      ctx.font = fontePatamar(p);
+      largRot[i] = ctx.measureText(textoRot[i]).width;
+    }
+    // x é o centro da CAIXA (o que o desempilhamento usa); ax é a âncora,
+    // onde fica o ponto. Com o nome à direita do ponto, os dois não coincidem.
+    const r = p <= 2 ? 3.2 : 2.5;
+    cand.push({texto:textoRot[i], larg:largRot[i], ax:x, y, p, i,
+               x: x + (r*2 + 10 + largRot[i])/2 - r - 5,
+               hh: CORPO_PATAMAR[p]*0.5 + 5,
+               // o patamar manda; a área só desempata dentro dele
+               peso: PESO_PATAMAR[p]*1e3 + (munLivreN ? munLivreN[i] : 0)});
+  }
+  poeRotulos(cand, 8, c => {
+    // Ponto à ESQUERDA e nome à direita, como no Google — e não o nome
+    // centrado sobre o ponto. O ponto é o lugar; o nome é a etiqueta dele.
+    // Centrado, o texto cobre a própria sede e o olho não sabe a que ponto
+    // do mapa o nome se refere quando há dois perto.
+    const foco = c.i === focoMun;
+    const sobre = c.i === rotuloRealce;
+    const r = c.p <= 2 ? 3.2 : 2.5;
+    const tx = c.ax + r + 5;
+    ctx.font = fontePatamar(c.p);
+    ctx.textAlign = 'left';
+    // Placa clara sob o rótulo apontado. É o que faz o nome se ler como
+    // botão: sem ela o cursor muda mas nada na tela confirma o alvo.
+    if(sobre || foco){
+      const h = CORPO_PATAMAR[c.p] + 8;
+      ctx.beginPath();
+      const x0 = c.ax - r - 5, larg = r*2 + 10 + c.larg + 5;
+      if(ctx.roundRect) ctx.roundRect(x0, c.y - h/2, larg, h, h/2);
+      else ctx.rect(x0, c.y - h/2, larg, h);
+      ctx.fillStyle = foco ? 'rgba(255,255,255,.95)' : 'rgba(255,255,255,.82)';
+      ctx.fill();
+      if(foco){
+        ctx.lineWidth = 1.4; ctx.strokeStyle = 'rgba(38,34,28,.55)'; ctx.stroke();
+      }
+    }
+    ctx.beginPath();
+    ctx.arc(c.ax, c.y, sobre || foco ? r + 0.8 : r, 0, 6.284);
+    ctx.lineWidth = 2.4; ctx.strokeStyle = 'rgba(255,255,255,.92)'; ctx.stroke();
+    ctx.fillStyle = foco || sobre ? 'rgba(20,18,14,.95)' : 'rgba(78,72,62,.9)';
+    ctx.fill();
+    // auréola clara por baixo: sem ela o nome some sobre mata e sobre rio
+    ctx.lineWidth = 3; ctx.lineJoin = 'round';
+    ctx.strokeStyle = 'rgba(255,255,255,.92)';
+    if(!sobre && !foco) ctx.strokeText(c.texto, tx, c.y);
+    ctx.fillStyle = foco || sobre ? 'rgba(16,14,11,.98)' : 'rgba(58,54,46,.88)';
+    ctx.fillText(c.texto, tx, c.y);
+    rotulosNaTela.push({i:c.i, x:c.x, y:c.y,
+                        hw:(c.larg + r*2 + 10)/2 + 3,
+                        hh:CORPO_PATAMAR[c.p]*0.5 + 7});
+  });
+  ctx.textAlign = 'center';
+  ctx.restore();
+}
+function rotuloSob(mx, my){
+  for(let k=rotulosNaTela.length-1;k>=0;k--){
+    const r = rotulosNaTela[k];
+    if(Math.abs(r.x - mx) <= r.hw && Math.abs(r.y - my) <= r.hh) return r;
+  }
+  return null;
 }
 function desenhaRotulosMun(){
   if(!malhaMun || animando) return;
@@ -1536,7 +1757,7 @@ function desenha(){
   // os vizinhos primeiro: se um nome de estado e um de município disputarem o
   // mesmo espaço, quem está dentro do recorte é que deve prevalecer
   desenhaRotulosUF();
-  desenhaRotulosMun();
+  desenhaRotulosCidade();
   // Os três modos não trocam mais de estalo. Numa faixa de zoom em torno de
   // cada fronteira, o modo que sai e o que entra são desenhados juntos, com
   // opacidades complementares — o olho lê uma dissolução, não um corte.
@@ -1549,14 +1770,19 @@ function desenha(){
   // As duas faixas nunca se sobrepõem — ZOOM_CONTEXTO está no nível 5,87 e
   // ZOOM_PINOS no 12,2, e cada uma tem só um quarto de nível de largura —,
   // então as três opacidades sempre somam 1.
-  let aUF   = ufFiltrada ? 0 : 1 - mistura(z, ZOOM_CONTEXTO);
+  // O aglutinador saiu. Bolha por UF e grade de células mostravam a rede
+  // inteira de uma vez, mas eram também o que poluía toda a faixa entre a
+  // visão nacional e a escala de rua — e o mapa passa a abrir perto de onde
+  // a pessoa está, onde o que importa é o estabelecimento, não o agregado.
+  // Afastando, o mapa esvazia de propósito: serve para se localizar, não
+  // para ler o país. Medido, é o que torna isso possível sem perder nada
+  // legível: no nível 10 uma tela sobre São Paulo teria 3.655 pinos.
   let aPino = munFiltrada ? 1 : mistura(z, ZOOM_PINOS);
   // A dissolução vale enquanto o gesto acontece. PARADO, nunca: meia bolha com
   // meio pino por baixo não é transição, é sujeira — duas simbologias
   // diferentes a 50% cada leem como defeito de desenho, não como progressão.
   // Em repouso o quadro mostra um modo só, sempre.
-  if(!animando){ aUF = aUF >= 0.5 ? 1 : 0; aPino = aPino >= 0.5 ? 1 : 0; }
-  const aGrade = (1 - aUF) * (1 - aPino);
+  if(!animando) aPino = aPino >= 0.5 ? 1 : 0;
   const raio = 7.5;
   ctx.lineJoin = 'round';
   // O clique consulta esta lista; refazê-la a cada quadro a mantém coerente
@@ -1570,12 +1796,8 @@ function desenha(){
   // o realce vem ANTES das bolhas: é fundo do estado, não marca sobre ele
   // o realce do estado vale também com um estado já escolhido — aí ele marca o
   // VIZINHO sob o ponteiro, e não pode acompanhar aUF, que nesse caso é zero
-  if(ufRealce >= 0 && (ufFiltrada || aUF > MIN_VISIVEL)){
-    ctx.globalAlpha = ufFiltrada ? 1 : aUF; desenhaRealceUF();
-  }
+  if(ufRealce >= 0){ ctx.globalAlpha = 1; desenhaRealceUF(); }
   if(munRealce >= 0){ ctx.globalAlpha = 1; desenhaRealceMun(); }
-  if(aUF > MIN_VISIVEL){ ctx.globalAlpha = aUF; desenhaBolhasUF(aUF >= 0.5); }
-  if(aGrade > MIN_VISIVEL){ ctx.globalAlpha = aGrade; desenhaGrade(aGrade >= 0.5); }
   ctx.globalAlpha = 1;
   if(aPino <= MIN_VISIVEL){ escala(); creditoAtual(); return; }
   const cPub = css('--pub'), cConv = css('--conv'), cSup = css('--surface');
@@ -1882,6 +2104,8 @@ function filtra(){
   resumoUFLivre = D.ufs.map(()=>({n:0, pub:0}));
   if(!munLivreN){ munLivreN = new Int32Array(D.muns.length); munLivreP = new Int32Array(D.muns.length); }
   else { munLivreN.fill(0); munLivreP.fill(0); }
+  munTipo.fill(0); munServA.fill(0); munServB.fill(0);
+  ufTipo.fill(0); ufServA.fill(0); ufServB.fill(0);
   ufFiltrada = (u >= 0 || mu >= 0);
   munFiltrada = (mu >= 0);
   ufSel = u; munSel = mu; bairroSel = ba;
@@ -1907,8 +2131,15 @@ function filtra(){
     // valendo: com "hospital" marcado, o rótulo conta hospitais.
     if((t<0 || tipo[i]===t) && (e<0 || esfera[i]===e) &&
        (sv<0 || servIdx[i].indexOf(sv)>=0)){
-      const L = resumoUFLivre[D.munUF[mun[i]]];
+      const iuf = D.munUF[mun[i]];
+      const L = resumoUFLivre[iuf];
       L.n++; if(esfera[i]===0) L.pub++;
+      ufTipo[iuf] |= 1 << tipo[i];
+      munTipo[mun[i]] |= 1 << tipo[i];
+      for(const s of servIdx[i]){
+        if(s < 32){ ufServA[iuf] |= 1 << s; munServA[mun[i]] |= 1 << s; }
+        else { ufServB[iuf] |= 1 << (s-32); munServB[mun[i]] |= 1 << (s-32); }
+      }
       // o município ignora o recorte de município e bairro, mas respeita o de
       // UF: dentro de um estado, o rótulo de cada cidade conta a própria cidade
       if(u<0 || D.munUF[mun[i]]===u){
@@ -1988,9 +2219,107 @@ cv.addEventListener('pointerleave', limpaRealceUF);
 // mostra. Por isso nada aqui é a única via para nenhuma informação.
 const rotuloUF = g('rotuloUF');
 function limpaRealceUF(){
-  if(ufRealce < 0 && munRealce < 0) return;
-  ufRealce = munRealce = -1; rotuloUF.hidden = true; cv.style.cursor = '';
+  if(ufRealce < 0 && munRealce < 0 && rotuloRealce < 0) return;
+  ufRealce = munRealce = rotuloRealce = -1;
+  rotuloUF.hidden = true; cv.style.cursor = '';
   agendaRedraw();
+}
+// ---- ir a um lugar ---------------------------------------------------------
+// Clicar num nome NAVEGA e INFORMA; não recorta. São dois gestos diferentes e
+// estavam embaraçados num só: antes, clicar no mapa alimentava o seletor do
+// painel, de modo que explorar o mapa apagava o resto dele. Agora o recorte é
+// só do painel, e o mapa serve para andar e para olhar.
+
+// ---- sumário do lugar ------------------------------------------------------
+// O cartão flutuante que segue o ponteiro voltou a ser só prévia. Enquanto ele
+// acumulava as duas funções — prévia e ficha do lugar escolhido —, escolher um
+// lugar travava o hover: o mapa ficava surdo ao ponteiro até se clicar no
+// vazio. O Google continua acendendo os outros nomes com um lugar aberto, e
+// agora nós também, porque o que é permanente mora aqui.
+const pnLugar = g('lugar');
+// Ir a um lugar move o mapa por baixo do ponteiro: o que estava sob ele deixa
+// de estar. Sem zerar aqui, o cursor seguia em 'pointer' sobre terreno vazio
+// até o próximo nome — e um cursor que promete alvo onde não há é pior que
+// nenhum, porque o clique não responde.
+function soltaPonteiro(){
+  rotuloRealce = -1; rotuloUF.hidden = true; cv.style.cursor = '';
+}
+function linhaLugar(cor, texto, valor, nota){
+  const li = document.createElement('li');
+  if(cor){ const i = document.createElement('i');
+           i.style.background = css(cor); li.appendChild(i); }
+  const s = document.createElement('span'); s.textContent = texto; li.appendChild(s);
+  const v = document.createElement('b'); v.textContent = fmt(valor); li.appendChild(v);
+  if(nota){ const e = document.createElement('em'); e.textContent = nota; li.appendChild(e); }
+  return li;
+}
+function mostraLugar(escopo, i){
+  const uf = escopo === 'uf';
+  const n   = uf ? (resumoUFLivre[i] || {n:0}).n   : munLivreN[i];
+  const pub = uf ? (resumoUFLivre[i] || {pub:0}).pub : munLivreP[i];
+  const nt  = bits(uf ? ufTipo[i] : munTipo[i]);
+  const ns  = bits(uf ? ufServA[i] : munServA[i]) + bits(uf ? ufServB[i] : munServB[i]);
+  g('lugNome').textContent = uf ? (NOME_UF[D.ufs[i]] || D.ufs[i]) : cap(D.muns[i]);
+  g('lugEscopo').textContent = uf
+    ? 'Unidade da federação · ' + D.ufs[i]
+    : 'Município · ' + D.ufs[D.munUF[i]];
+  g('lugTotal').textContent = fmt(n);
+  g('lugTotalTxt').textContent = n === 1 ? 'estabelecimento' : 'estabelecimentos';
+  const ul = g('lugLinhas'); ul.textContent = '';
+  if(n > 0){
+    ul.appendChild(linhaLugar('--pub',  'Pública', pub));
+    ul.appendChild(linhaLugar('--conv', 'Conveniada', n - pub));
+    ul.appendChild(linhaLugar(null, 'Tipos de estabelecimento', nt, 'de ' + D.tipos.length));
+    ul.appendChild(linhaLugar(null, 'Serviços especializados', ns, 'de ' + D.servicos.length));
+  }
+  pnLugar.hidden = false;
+  agendaRedraw();
+}
+function fechaLugar(){
+  if(pnLugar.hidden && focoMun < 0 && focoUF < 0) return;
+  pnLugar.hidden = true; focoMun = focoUF = -1;
+  g('lugNome').textContent = ''; g('lugLinhas').textContent = '';
+  agendaRedraw();
+}
+g('bFechaLugar').onclick = fechaLugar;
+// A cidade é enquadrada pela âncora, não pelo polígono: a malha do estado
+// pode nem estar carregada, e esperar por ela para só então mover o mapa
+// deixaria o clique sem resposta pelo tempo do download. O nível de destino
+// fica acima de ZOOM_PINOS para que os pinos da cidade já apareçam de uma vez.
+function vaiParaMun(i){
+  focoMun = i; focoUF = -1; soltaPonteiro();
+  // O contorno do município precisa da malha do estado dele, que é buscada sob
+  // demanda. Pede aqui e segue: o enquadramento não espera o download, e o
+  // contorno aparece quando o arquivo chega.
+  carregaMalhaMun(D.munUF[i]);
+  fecha();                       // a ficha e o sumário ocupam o mesmo canto
+  mostraLugar('mun', i);
+  const dx = qx1[i] - qx0[i], dy = qy1[i] - qy0[i], folga = 1.6;
+  let nz = Math.min(dx > 0 ? W/(dx*folga) : Infinity,
+                    dy > 0 ? H/(dy*folga) : Infinity);
+  // O piso fica ACIMA da faixa de troca, não em cima dela: parar em 12,3
+  // faria foraDaFaixa empurrar para 12,08, abaixo de ZOOM_PINOS, e a cidade
+  // abriria sem um pino sequer — exatamente o que este enquadramento existe
+  // para evitar. O teto impede fechar além do que a coordenada do CNES
+  // sustenta.
+  if(!Number.isFinite(nz)) nz = Z(14.5);        // município de um ponto só
+  // O piso fica ACIMA da faixa de troca, não em cima dela: parar em 12,3 faria
+  // foraDaFaixa empurrar para 12,08, abaixo de ZOOM_PINOS, e a cidade abriria
+  // sem um pino sequer — exatamente o que este enquadramento existe para
+  // evitar. O teto impede fechar além do que a coordenada do CNES sustenta.
+  nz = Math.max(Z(12.5), Math.min(nz, Z(15)));
+  alvoZoom(nz, rx[i]*z + ox, ry[i]*z + oy, W/2, H/2);
+}
+function vaiParaUF(iu){
+  const u = ufsGeo.find(x => x.i === iu);
+  if(!u) return;
+  focoUF = iu; focoMun = -1; soltaPonteiro();
+  carregaMalhaMun(iu);           // as cidades do estado passam a ter divisa
+  fecha();
+  mostraLugar('uf', iu);
+  const dx = u.x1-u.x0, dy = u.y1-u.y0, m = 1.14;
+  const nz = Math.min(dx > 0 ? W/(dx*m) : Infinity, dy > 0 ? H/(dy*m) : Infinity);
+  alvoZoom(nz, (u.x0+u.x1)/2*z + ox, (u.y0+u.y1)/2*z + oy, W/2, H/2);
 }
 function escreveRotulo(titulo, n, pub){
   rotuloUF.textContent = '';
@@ -2016,7 +2345,25 @@ function atualizaRealceUF(e){
   if(marcando) return limpaRealceUF();
   const r = cv.getBoundingClientRect();
   const mx = e.clientX - r.left, my = e.clientY - r.top;
-  if(modoUF()){
+  // O nome vem primeiro, igual ao clique: é o alvo mais visível da tela, e
+  // no Google é ele que acende e troca o cursor. Realçar o polígono por
+  // baixo ao mesmo tempo daria duas respostas para um gesto só.
+  const rot = rotuloSob(mx, my);
+  // Sair do nome precisa devolver o cursor e apagar a prévia, e não só zerar o
+  // realce: sem isto o ponteiro seguia em 'pointer' sobre terreno vazio, e o
+  // mapa prometia um alvo que não existia mais ali.
+  if(!rot && rotuloRealce >= 0){
+    rotuloRealce = -1; rotuloUF.hidden = true; cv.style.cursor = '';
+    agendaRedraw();
+  }
+  if(rot){
+    if(rot.i !== rotuloRealce){
+      rotuloRealce = rot.i; ufRealce = munRealce = -1;
+      escreveRotulo(cap(D.muns[rot.i]),
+                    munLivreN ? munLivreN[rot.i] : 0,
+                    munLivreP ? munLivreP[rot.i] : 0);
+    }
+  } else if(modoUF()){
     if(munRealce >= 0){ munRealce = -1; }
     const iu = ufDesignada(mx, my);
     if(iu < 0) return limpaRealceUF();
@@ -2183,9 +2530,7 @@ function bolhaSob(mx, my, tol){
 // Não há tolerância aqui porque não é preciso: o polígono cobre toda a área em
 // volta da bolha, então errar a bolha por pouco continua acertando o estado.
 function ufDesignada(mx, my){
-  const b = bolhaSob(mx, my, 0);
-  if(b && b.ufIdx !== undefined) return b.ufIdx;
-  const u = ufSob(mx, my);
+  const u = ufSob(mx, my);            // sem bolha, decide só a geografia
   return u ? u.i : -1;
 }
 function zoomNoGrupo(b){
@@ -2231,7 +2576,7 @@ function clique(e){
   if(marcando){
     // em modo de marcação, zoom fraco só aproxima (como o clique normal) —
     // a marcação de fato só é capturada perto o bastante pra fazer sentido
-    if(z < ZOOM_PINOS){ alvoZoom(comSalto(z, z*3.2, true), mx, my); return; }
+    if(z < ZOOM_PINOS){ alvoZoom(z*3.2, mx, my); return; }
     const [la, lo] = telaParaLatLon(mx, my);
     confirmaMarcacao(la, lo);
     return;
@@ -2250,7 +2595,7 @@ function clique(e){
     // multiplicava o zoom por 3,2 ali mesmo; um clique no oceano entregava uma
     // tela azul inteiramente vazia, sem marca e sem pista de onde se estava.
     // Quem quer aproximar o vazio tem a roda, o + e − e o enquadrar.
-    if(iu >= 0){ limpaRealceUF(); fUF.value = String(iu); fUF.onchange(); }
+    if(iu >= 0) vaiParaUF(iu);
     return;
   }
   // A ficha do estabelecimento tem prioridade sobre o território: escolhida a
@@ -2259,36 +2604,18 @@ function clique(e){
   // atrás do polígono e um toque nele trocava o recorte.
   const melhor = modoPinos() ? pinoSob(mx, my) : -1;
   if(melhor < 0){
-    if(modoMun()){
-      const m = munSob(mx, my);
-      // Cidade DIFERENTE da escolhida: troca direto.
-      if(m && m.i >= 0 && m.i !== munSel){
-        limpaRealceUF(); fMun.value = String(m.i); fMun.onchange(); return;
-      }
-      // Fora do estado escolhido não há município carregado, e antes o clique
-      // caía numa bolha qualquer e só dava zoom — o usuário ficava PRESO no
-      // estado, sem nenhum jeito de sair clicando. Agora o estado vizinho é
-      // alvo como qualquer outro.
-      if(!m){
-        const iu = ufSob(mx, my);
-        if(iu && iu.i !== ufSel){
-          limpaRealceUF(); fUF.value = String(iu.i); fUF.onchange(); return;
-        }
-      }
-      // Sobrou: clique dentro da cidade já escolhida, sem pino por perto.
-      // Aí o agrupamento manda — é o gesto de descer, não o de trocar.
-      const b = bolhaSob(mx, my);
-      if(b) zoomNoGrupo(b);
-      return;
-    }
-    if(z < ZOOM_PINOS){      // grade: a célula não é um lugar, então aproxima
-      const b = bolhaSob(mx, my);
-      if(b) zoomNoGrupo(b);
-      return;
-    }
+    // O NOME é o primeiro alvo, acima de polígono e de bolha. É o que se vê
+    // e é onde se mira; deixá-lo atrás do polígono faria o clique no nome
+    // responder outra coisa que não o nome.
+    const rot = rotuloSob(mx, my);
+    if(rot){ vaiParaMun(rot.i); return; }
+    const rotu = rotuloUFSob(mx, my);
+    if(rotu >= 0){ vaiParaUF(rotu); return; }
+    fechaLugar();
     return fecha();
   }
   const irmaos = grupos[grupoDe[melhor]].filter(i => vis[i]);
+  fechaLugar();                  // a ficha assume o canto
   sel = melhor;
   if(irmaos.length > 1){ grupoAtual = irmaos; mostraLista(irmaos); }
   else { grupoAtual = null; mostra(melhor); }

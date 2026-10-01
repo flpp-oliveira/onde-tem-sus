@@ -23,7 +23,7 @@ Uso:  python gera_mapa.py [competencia]      ex.: python gera_mapa.py 202606
 Saída: mapa_rede_sus_<competencia>.html (autocontido, funciona offline)
        e web/index.html + web/fichas.json (para servir com Cloudflare Pages)
 """
-import csv, hashlib, json, os, sys, collections
+import csv, hashlib, json, math, os, re, sys, unicodedata, collections
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
 INSUMOS = os.path.join(AQUI, "insumos")    # malha do IBGE, municípios, simplificação
@@ -78,12 +78,101 @@ serv_ds   = {r["CO_SERVICO_ESPECIALIZADO"]: r["DS_SERVICO_ESPECIALIZADO"] for r 
 uf_sigla   = {r["CO_UF"]: r["CO_SIGLA"] for r in ler("tbEstado")}
 mun_nome   = {r["CO_MUNICIPIO"]: (r["NO_MUNICIPIO"], r["CO_SIGLA_ESTADO"]) for r in ler("tbMunicipio")}
 
+# ------------------------------------------- hierarquia dos municípios ---
+# Em que escala o nome de cada município aparece no mapa. A régua não é
+# população nem número de estabelecimentos: é a divisão regional do IBGE, em
+# que cada região imediata e intermediária é nomeada pela sua sede — o centro
+# urbano que polariza as demais. É hierarquia funcional oficial, e não um
+# corte inventado aqui.
+#
+# O número de estabelecimentos seria a régua errada por construção: é a
+# própria variável que o mapa apresenta. Os lugares com mais unidades
+# ganhariam nome primeiro, e o mapa passaria a confirmar a si mesmo.
+#
+# Medido contra o Google Maps, mesma tela e mesmo centro: no nível 6 ele
+# acrescenta Uberlândia, Campinas, Juiz de Fora e Montes Claros — todas sedes
+# de região intermediária; no nível 7, Patos de Minas, Araxá, Curvelo e
+# Barretos — todas sedes de região imediata.
+CAPITAIS = {
+    "RO": "Porto Velho", "AC": "Rio Branco", "AM": "Manaus", "RR": "Boa Vista",
+    "PA": "Belém", "AP": "Macapá", "TO": "Palmas", "MA": "São Luís",
+    "PI": "Teresina", "CE": "Fortaleza", "RN": "Natal", "PB": "João Pessoa",
+    "PE": "Recife", "AL": "Maceió", "SE": "Aracaju", "BA": "Salvador",
+    "MG": "Belo Horizonte", "ES": "Vitória", "RJ": "Rio de Janeiro",
+    "SP": "São Paulo", "PR": "Curitiba", "SC": "Florianópolis",
+    "RS": "Porto Alegre", "MS": "Campo Grande", "MT": "Cuiabá",
+    "GO": "Goiânia", "DF": "Brasília",
+}
+# Sete regiões cujo nome não casa com nenhum município: grafia divergente do
+# IBGE, ou nome composto que o desmembramento por separador não resolve.
+EXCECOES_SEDE = {
+    ("ES", "cachoeiro do itapemirim"): "cachoeiro de itapemirim",
+    ("CE", "itapage"): "itapaje",
+    ("RN", "acu"): "assu",
+    ("DF", "distrito federal"): "brasilia",
+}
+SEP_REGIAO = re.compile(r"\s*[-\u2010-\u2015\u00bf/]\s*")
+
+
+def _chave(s):
+    s = unicodedata.normalize("NFD", s)
+    s = "".join(c for c in s if unicodedata.category(c) != "Mn")
+    return re.sub(r"[^a-z ]", "", s.lower()).strip()
+
+
+def _uf_de(m):
+    mi = m.get("microrregiao")
+    if mi: return mi["mesorregiao"]["UF"]["sigla"]
+    return m["regiao-imediata"]["regiao-intermediaria"]["UF"]["sigla"]
+
+
+def patamares(ibge):
+    """Código de 6 dígitos -> 1 capital, 2 sede intermediária, 3 imediata, 4 demais."""
+    por_nome = {(_uf_de(m), _chave(m["nome"])): m["id"] for m in ibge}
+
+    def sede(nome, uf):
+        alt = EXCECOES_SEDE.get((uf, _chave(nome)))
+        if alt and (uf, alt) in por_nome:
+            return por_nome[(uf, alt)]
+        if (uf, _chave(nome)) in por_nome:      # nome inteiro antes de partir:
+            return por_nome[(uf, _chave(nome))]  # Ji-Paraná tem hífen no nome
+        for parte in SEP_REGIAO.split(nome):
+            if (uf, _chave(parte)) in por_nome:
+                return por_nome[(uf, _chave(parte))]
+        return None
+
+    intermediarias, imediatas, sem_sede = set(), set(), 0
+    for m in ibge:
+        uf = _uf_de(m)
+        ri = m["regiao-imediata"]
+        for nome, destino in ((ri["regiao-intermediaria"]["nome"], intermediarias),
+                              (ri["nome"], imediatas)):
+            s = sede(nome, uf)
+            if s is None: sem_sede += 1
+            else: destino.add(s)
+    capitais = {por_nome[(uf, _chave(n))] for uf, n in CAPITAIS.items()
+                if (uf, _chave(n)) in por_nome}
+    if sem_sede or len(capitais) != 27:
+        raise SystemExit("hierarquia: %d regiões sem sede, %d capitais de 27"
+                         % (sem_sede, len(capitais)))
+    return {str(m["id"])[:6]: (1 if m["id"] in capitais else
+                               2 if m["id"] in intermediarias else
+                               3 if m["id"] in imediatas else 4) for m in ibge}
+
+
 mun_acento = {}
+patamar_cod = {}
 cam_mun = os.path.join(INSUMOS, "municipios_ibge.json")
 if os.path.exists(cam_mun):
-    for m in json.load(open(cam_mun, encoding="utf-8")):
+    _ibge = json.load(open(cam_mun, encoding="utf-8"))
+    for m in _ibge:
         mun_acento[str(m["id"])[:6]] = m["nome"]
     print("  nomes de município acentuados (IBGE): %d" % len(mun_acento))
+    patamar_cod = patamares(_ibge)
+    _c = collections.Counter(patamar_cod.values())
+    print("  hierarquia IBGE: %d capitais · %d sedes de região intermediária"
+          " · %d de região imediata · %d demais"
+          % (_c[1], _c[2], _c[3], _c[4]))
 
 # ------------------------------------------------- critério da rede (SUS) ----
 sus = {r["CO_UNIDADE"] for r in ler("rlEstabAtendPrestConv") if r["CO_CONVENIO"].strip() == "01"}
@@ -358,7 +447,27 @@ if os.path.exists(cam_malha):
                                    for a in f["aneis"]]})
     print("  malha de UFs: %d unidades" % len(malha))
 
+# ------------------------------------------------- rótulos dos municípios ---
+# Só o patamar viaja: um dígito por município, alinhado ao índice interno de
+# `muns` — o mesmo do seletor.
+#
+# A ÂNCORA não vem daqui. Ela era o centroide de área do polígono, e centroide
+# não é sede: Palmas tem a sede na beira do rio e o território esticado para
+# leste, então o nome saía 80 km fora do lugar, contra o próprio topônimo da
+# carta do OpenStreetMap por baixo. Quem sabe onde fica a cidade é o dado que
+# o mapa já carrega — a MEDIANA das coordenadas dos estabelecimentos do
+# município, calculada no cliente. Mediana, e não média, porque um posto
+# rural isolado desloca a média e não mexe na mediana. De quebra saem 24,8 KB
+# de tabela de âncoras da página.
+rot_p = [0] * len(muns)
+for _cod, _i in imun.items():
+    rot_p[_i] = patamar_cod.get(_cod, 4)
+_sem = sum(1 for v in rot_p if v == 0)
+print("  patamar por município: %d classificados, %d sem"
+      % (len(rot_p) - _sem, _sem))
+
 dados = {
+    "rotP": "".join(str(p) for p in rot_p),
     "malha": malha,
     "malhaGrossa": malha_grossa,
     "lat": delta36([p["la"] for p in pts]),
