@@ -19,9 +19,10 @@ Artefato de trabalho de conclusão de curso.
 
 | Caminho | O que é |
 |---|---|
-| `gera_mapa.py` | o pipeline: lê o CNES bruto e produz o site |
-| `template.html` | a interface; os dados são injetados na geração |
-| `web/` | o site pronto — `index.html` e `fichas.json` |
+| `trata_cnes.py` | lê o CNES bruto, trata e entrega o dado |
+| `gera_site.py` | monta de `dados_tratados.json` os arquivos que o mapa busca |
+| `gera_regioes.py` | casa as regiões de saúde com os municípios |
+| `web/` | o site pronto: `index.html`, `sobre.html` e os seis arquivos de dado |
 | `auditoria_bairros_202606.csv` | as 443 grafias de bairro alteradas, uma por linha |
 | `functions/api/report.js` | a API que recebe as correções enviadas pela população |
 | `schema.sql` | a tabela onde as correções são gravadas |
@@ -63,12 +64,17 @@ descompacte na raiz deste repositório como `BASE_DE_DADOS_CNES_202606/`,
 confira os hashes contra `docs/HASHES_BASE_202606.txt` e rode:
 
 ```
-python gera_mapa.py 202606
+python trata_cnes.py 202606
+python gera_site.py
 ```
 
-Sai `web/index.html` e `web/fichas.json` — o site publicável — mais
-`auditoria_bairros_202606.csv` e a base tratada. Esta última não é versionada:
-são 46 MB regeneráveis a qualquer momento por este mesmo comando.
+O primeiro trata a base e deixa `web/fichas.json`, `auditoria_bairros_202606.csv`,
+a base tratada e `dados_tratados.json`. O segundo lê esse último e escreve os
+cinco arquivos que o mapa busca ao abrir. O `regioes.json` sai de
+`python gera_regioes.py`, que só precisa rodar quando a tabela de regiões mudar.
+
+A base tratada e o `dados_tratados.json` não são versionados: somam 51 MB
+regeneráveis a qualquer momento pelos comandos acima.
 
 Não estão aqui os dois documentos do Ministério da Saúde consultados para
 interpretar a base: guardá-los seria redistribuir obra de terceiro. A origem, a

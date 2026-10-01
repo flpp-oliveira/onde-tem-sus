@@ -1,26 +1,25 @@
 # -*- coding: utf-8 -*-
-"""Casa as regiões de saúde com os municípios do mapa e escreve web/poc/regioes.json.
+"""Casa as regiões de saúde com os municípios do mapa e escreve web/regioes.json.
 
 O casamento é por nome+UF porque o índice de município do mapa não guarda o
 código do IBGE — ele vem de CO_MUNICIPIO_GESTOR no CNES, e é esse código que a
 tabela de regiões usa. Os nomes são normalizados dos dois lados.
 
-    python poc/gera_regioes.py
+    python gera_regioes.py
 """
 import gzip
 import json
 import os
-import re
 import sys
 import unicodedata
 import csv
 
 sys.stdout.reconfigure(line_buffering=True, encoding="utf-8")
 
-AQUI = os.path.dirname(os.path.abspath(__file__))
-RAIZ = os.path.dirname(AQUI)
+RAIZ = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(RAIZ, "web")
-SAIDA = os.path.join(WEB, "poc", "regioes.json")
+SAIDA = os.path.join(WEB, "regioes.json")
+DADOS = os.path.join(RAIZ, "dados_tratados.json")
 FONTE = os.path.join(RAIZ, "insumos", "regiao_saude.json")
 CNES = os.path.join(RAIZ, "BASE_DE_DADOS_CNES_202606", "tbMunicipio202606.csv")
 
@@ -46,9 +45,10 @@ def main():
     porCod = {x["codigo_municipio"]: x for x in API}
     print("  %d municípios na tabela" % len(porCod))
 
-    print("lendo web/index.html")
-    html = open(os.path.join(WEB, "index.html"), encoding="utf-8").read()
-    D = json.loads(re.search(r'id="dados">(.*?)</script>', html, re.S).group(1))
+    if not os.path.exists(DADOS):
+        sys.exit("falta dados_tratados.json — rode antes: python trata_cnes.py")
+    print("lendo dados_tratados.json")
+    D = json.load(open(DADOS, encoding="utf-8"))
     muns, ufs, munUF = D["muns"], D["ufs"], D["munUF"]
     print("  %d municípios no mapa" % len(muns))
 
@@ -115,7 +115,7 @@ def main():
     open(SAIDA, "w", encoding="utf-8").write(txt)
     b = txt.encode("utf-8")
     print()
-    print("gravado web/poc/regioes.json  %.1f KB cru · %.1f KB gzip"
+    print("gravado web/regioes.json  %.1f KB cru · %.1f KB gzip"
           % (len(b) / 1024, len(gzip.compress(b, 6)) / 1024))
     print("  %d regiões · %d macrorregiões" % (len(codsR), len(codsM)))
 

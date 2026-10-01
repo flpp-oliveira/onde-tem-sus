@@ -1,25 +1,23 @@
 # -*- coding: utf-8 -*-
 """Prepara os dados da prova de conceito com MapLibre.
 
-Não toca no site. Lê o JSON que a build já embute em web/index.html e escreve
-em web/poc/ o mínimo para a PoC desenhar: os mesmos campos empacotados dos
-estabelecimentos, os polígonos das UFs como GeoJSON e os municípios como
-pontos com patamar.
+Lê dados_tratados.json, que o trata_cnes.py escreve, e monta os arquivos que
+o mapa busca: os campos empacotados dos estabelecimentos, os polígonos das
+UFs como GeoJSON e os municípios como pontos com patamar.
 
-    python poc/gera_poc.py
+    python gera_site.py
 """
 import gzip
 import json
 import os
-import re
 import sys
 
 sys.stdout.reconfigure(line_buffering=True, encoding="utf-8")
 
-AQUI = os.path.dirname(os.path.abspath(__file__))
-RAIZ = os.path.dirname(AQUI)
+RAIZ = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(RAIZ, "web")
-SAIDA = os.path.join(WEB, "poc")
+SAIDA = WEB
+FONTE = os.path.join(RAIZ, "dados_tratados.json")
 
 J = lambda o: json.dumps(o, ensure_ascii=False, separators=(",", ":"))
 
@@ -96,10 +94,10 @@ def separa_aneis(aneis):
 
 def main():
     os.makedirs(SAIDA, exist_ok=True)
-    cam = os.path.join(WEB, "index.html")
-    print("lendo %s" % os.path.relpath(cam, RAIZ))
-    html = open(cam, encoding="utf-8").read()
-    D = json.loads(re.search(r'id="dados">(.*?)</script>', html, re.S).group(1))
+    if not os.path.exists(FONTE):
+        sys.exit("falta dados_tratados.json — rode antes: python trata_cnes.py")
+    print("lendo %s" % os.path.relpath(FONTE, RAIZ))
+    D = json.load(open(FONTE, encoding="utf-8"))
     print("  %d estabelecimentos · %d municípios · %d UFs"
           % (len(D["esfera"]), len(D["muns"]), len(D["ufs"])))
     print()
@@ -209,11 +207,8 @@ def main():
     cru += a; gz += b
 
     print()
-    print("total da PoC: %.1f KB cru · %.1f KB com gzip" % (cru / 1024, gz / 1024))
-    idx = os.path.getsize(os.path.join(WEB, "index.html"))
-    idxgz = len(gzip.compress(open(os.path.join(WEB, "index.html"), "rb").read(), 6))
-    print("site de hoje:  %.1f KB cru · %.1f KB com gzip (só index.html)"
-          % (idx / 1024, idxgz / 1024))
+    print("total do mapa: %.1f KB cru · %.1f KB com gzip" % (cru / 1024, gz / 1024))
+    print("  (a ficha, de 9 MB, é buscada só quando alguém abre um estabelecimento)")
 
 
 if __name__ == "__main__":

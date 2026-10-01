@@ -1,7 +1,7 @@
 // Cloudflare Pages Function — POST /api/report
 //
 // Recebe o report de localização enviado pelo botão da ficha (ver
-// template.html, seção "reportar localização") e grava:
+// web/index.html, seção "reportar localização") e grava:
 //   - os campos de texto/número no banco D1 (binding "DB")
 //   - a evidência em imagem, se anexada, no bucket R2 (binding "EVIDENCIAS")
 //

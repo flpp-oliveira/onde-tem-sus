@@ -14,6 +14,15 @@ BASE_DE_DADOS_CNES_*.zip
 mapa_rede_sus_*.html
 base_tratada_*.csv
 
+# A versão de produção anterior, de uma página só. Fica à mão no
+# computador para conferência, mas não sobe: são 7,9 MB que o site
+# não serve mais, e o repositório é público.
+v1/
+
+# O dado tratado que o trata_cnes.py entrega ao gera_site.py. É grande e
+# regenerável por um comando, como a base tratada logo acima.
+dados_tratados.json
+
 # --- ambiente -----------------------------------------------------------------
 # Estado local do wrangler: o banco D1 e o bucket R2 de teste desta máquina.
 .wrangler/

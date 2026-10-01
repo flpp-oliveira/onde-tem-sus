@@ -7,7 +7,7 @@ variante SEM correção de coordenada.
 carrega nem aplica a referência posicional do CNEFE/IBGE (D-25). A coordenada
 exibida é sempre a que o CNES declarou, sem nenhuma correção automática. A
 correção de localização, aqui, é responsabilidade da comunidade — pelo botão
-"Reportar localização" de cada ficha (ver `template.html` e
+"Reportar localização" de cada ficha (ver `web/index.html` e
 `functions/api/report.js`).
 
 Motivo do arquivo separado em vez de editar `mapa/gera_mapa.py`: a decisão de
@@ -19,9 +19,14 @@ Recorte: estabelecimentos ATIVOS (CO_MOTIVO_DESAB vazio) com convênio SUS
 (CO_CONVENIO = '01' em rlEstabAtendPrestConv), com coordenada válida —
 idêntico ao da v1.
 
-Uso:  python gera_mapa.py [competencia]      ex.: python gera_mapa.py 202606
-Saída: mapa_rede_sus_<competencia>.html (autocontido, funciona offline)
-       e web/index.html + web/fichas.json (para servir com Cloudflare Pages)
+Este script termina no dado tratado. Quem monta o site é o gera_site.py,
+que lê a saída daqui.
+
+Uso:  python trata_cnes.py [competencia]     ex.: python trata_cnes.py 202606
+Saída: base_tratada_<competencia>.csv e a auditoria de bairros, que são a
+       prestação de contas do tratamento; web/fichas.json, que o site
+       busca ao abrir um estabelecimento; e dados_tratados.json, a entrada
+       do gera_site.py.
 """
 import csv, hashlib, json, math, os, re, sys, unicodedata, collections
 
@@ -33,12 +38,7 @@ from simplifica import simplifica
 COMP = sys.argv[1] if len(sys.argv) > 1 else "202606"
 TOL_MALHA_FINA  = 0.002
 TOL_MALHA_GROSSA = 0.02
-# A malha municipal entra numa escala de estado, não de rua, e já vem do IBGE
-# em qualidade "minima". A mesma tolerância da malha fina de UFs mantém as
-# divisas coerentes com o contorno do país que elas dividem.
-TOL_MALHA_MUN = 0.002
 DATA = os.path.join(AQUI, "BASE_DE_DADOS_CNES_%s" % COMP)
-SAIDA = os.path.join(AQUI, "mapa_rede_sus_%s.html" % COMP)
 P = lambda n: os.path.join(DATA, "%s%s.csv" % (n, COMP))
 
 # Caixa de sanidade da coordenada: pega dígito trocado e sinal invertido.
@@ -490,74 +490,31 @@ dados = {
     "competencia": COMP,
 }
 
-template = open(os.path.join(AQUI, "template.html"), encoding="utf-8").read()
-template = template.replace("06/2026", "%s/%s" % (COMP[4:], COMP[:4]))
 J = lambda o: json.dumps(o, ensure_ascii=False, separators=(",", ":"))
 
-open(SAIDA, "w", encoding="utf-8").write(template.replace("/*__DADOS__*/", J(dados)))
-print("\ngerado: %s  (%.1f MB)" % (os.path.basename(SAIDA), os.path.getsize(SAIDA) / 1e6))
-
+# A ficha — nome, endereço, CEP, telefone e CNES — sai do pacote principal
+# e vira arquivo próprio: o mapa só precisa dela quando alguém abre um
+# estabelecimento, e são 9 MB que não devem pesar na primeira pintura.
 CAMPOS_FICHA = ["nome", "end", "cep", "tel", "cnes"]
 fichas = {k: dados.pop(k) for k in CAMPOS_FICHA}
+
 web = os.path.join(AQUI, "web")
 os.makedirs(web, exist_ok=True)
 open(os.path.join(web, "fichas.json"), "w", encoding="utf-8").write(J(fichas))
-open(os.path.join(web, "index.html"), "w", encoding="utf-8").write(
-    template.replace("/*__DADOS__*/", J(dados)))
-n_idx = os.path.getsize(os.path.join(web, "index.html"))
-n_fic = os.path.getsize(os.path.join(web, "fichas.json"))
+
+# O resto fica num arquivo próprio, e não embutido numa página pronta.
+# Enquanto o dado trafegava dentro do HTML gerado, quem montava o site
+# tinha de abrir esse HTML e pescar o JSON de dentro com expressão regular:
+# o site dependia de uma página que ele mesmo viria a substituir. Aqui
+# termina o tratamento do CNES, e daqui o gera_site.py começa.
+cam_dados = os.path.join(AQUI, "dados_tratados.json")
+open(cam_dados, "w", encoding="utf-8").write(J(dados))
+
 import gzip as _gz
 gz = lambda p: len(_gz.compress(open(p, "rb").read(), 6))
-print("gerado: web/index.html   %5.1f MB  (%.1f MB com gzip)"
-      % (n_idx / 1e6, gz(os.path.join(web, "index.html")) / 1e6))
-print("gerado: web/fichas.json  %5.1f MB  (%.1f MB com gzip)"
+n_fic = os.path.getsize(os.path.join(web, "fichas.json"))
+print()
+print("gerado: web/fichas.json      %5.1f MB  (%.1f MB com gzip)"
       % (n_fic / 1e6, gz(os.path.join(web, "fichas.json")) / 1e6))
-
-# ---- malha municipal, um arquivo por UF ------------------------------------
-# Um arquivo por estado, e não um só com o país inteiro, porque o mapa só
-# precisa das divisas do estado em que o usuário entrou. Juntos são 2,9 MB;
-# separados, o pior caso (Minas, 853 municípios) é 124 KB comprimido e o
-# mediano fica perto de 27 KB. A página inicial não cresce um byte: o arquivo
-# só é buscado quando um estado é escolhido, e depois fica no cache.
-#
-# O índice "i" é a posição do município na lista `muns` que o mapa já usa —
-# o mesmo valor do seletor de município. Assim o clique no polígono alimenta
-# o recorte que já existe, sem tabela de conversão no cliente. Município sem
-# estabelecimento com convênio SUS sai com i = -1: a divisa é desenhada, mas
-# não há o que filtrar.
-cam_mun = os.path.join(INSUMOS, "malha_municipios_minima.json")
-if os.path.exists(cam_mun):
-    from simplifica import dp
-    dir_malhas = os.path.join(web, "malhas")
-    os.makedirs(dir_malhas, exist_ok=True)
-    bruto = json.load(open(cam_mun, encoding="utf-8"))
-    tot_b = tot_gz = tot_m = tot_v = 0
-    maior = (0, "")
-    sem_indice = 0
-    for sigla in sorted(bruto):
-        saida_uf = []
-        for m in bruto[sigla]:
-            aneis = []
-            for anel in m["aneis"]:
-                s = dp([tuple(p) for p in anel], TOL_MALHA_MUN)
-                if len(s) >= 4:
-                    aneis.append([[round(x, 4), round(y, 4)] for x, y in s])
-            if not aneis:
-                continue
-            i = imun.get(m["cod"][:6], -1)
-            if i < 0:
-                sem_indice += 1
-            saida_uf.append({"i": i, "a": aneis})
-            tot_v += sum(len(a) for a in aneis)
-        cam = os.path.join(dir_malhas, sigla + ".json")
-        open(cam, "w", encoding="utf-8").write(J(saida_uf))
-        b, g = os.path.getsize(cam), gz(cam)
-        tot_b += b; tot_gz += g; tot_m += len(saida_uf)
-        if g > maior[0]:
-            maior = (g, sigla, len(saida_uf))
-    print("gerado: web/malhas/*.json  27 arquivos · %d municípios · %d vértices"
-          % (tot_m, tot_v))
-    print("    %.2f MB cru · %.2f MB com gzip · maior: %s com %.0f KB (%d municípios)"
-          % (tot_b / 1e6, tot_gz / 1e6, maior[1], maior[0] / 1024, maior[2]))
-    print("    sem estabelecimento no recorte (divisa desenhada, não clicável): %d"
-          % sem_indice)
+print("gerado: dados_tratados.json  %5.1f MB  (não publicado; entra no gera_site.py)"
+      % (os.path.getsize(cam_dados) / 1e6,))
