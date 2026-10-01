@@ -644,8 +644,14 @@
     <button class="icone" id="bLupa" aria-label="Buscar">
       <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4.3-4.3"/></svg>
     </button>
-    <input id="q" placeholder="Buscar cidade ou estado" autocomplete="off"
-           aria-label="Buscar cidade ou estado">
+    <!-- O campo aceita município, bairro, estado, região de saúde e o nome do
+         estabelecimento. "Buscar cidade ou estado" anunciava dois dos cinco, e
+         quem procurava um hospital pelo nome não tentava. Dizer os cinco não
+         cabe: no celular sobram 202 px, e a frase inteira pede 293. Então o
+         texto da tela convida, e o rótulo — que não tem limite de largura —
+         enumera para quem usa leitor de tela. -->
+    <input id="q" placeholder="Busque no Onde Tem SUS" autocomplete="off"
+           aria-label="Busque uma cidade, bairro, estado, região de saúde ou estabelecimento">
     <button class="icone" id="bLimpar" hidden aria-label="Limpar">
       <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
     </button>
