@@ -575,6 +575,24 @@
     .grande b{font-size:36px}
     .capa h2{font-size:22px}
   }
+
+  /* A mesma regra vale por ALTURA, e não só por largura.
+
+     O colunado divide o painel entre a capa, que tem tamanho próprio, e a
+     lista, que fica com o que sobrar. Numa janela baixa não sobra: medido
+     com Belo Horizonte aberto, a caixa dos 540 estabelecimentos tinha 0 px
+     a 700 de altura, 100 a 800, 200 a 900 e 380 a 1080. Abaixo de ~750 a
+     lista simplesmente não existia — título e filtros à vista, nenhum item,
+     e sem rolagem que alcançasse, porque nesse modo o corpo não rola.
+
+     Não é caso raro: um notebook de 1366x768 sobra perto de 650 px depois
+     da barra do navegador. Abaixo de 900 a folha volta a ser um texto só,
+     que rola inteiro — o mesmo tratamento da tela estreita. */
+  @media (max-height: 900px){
+    .corpo.colunado{display:block;overflow-y:auto}
+    .corpo.colunado .rolavel{display:block;min-height:0}
+    .corpo.colunado .rolavel .lista{overflow:visible;min-height:0}
+  }
 </style>
 </head>
 <body>
