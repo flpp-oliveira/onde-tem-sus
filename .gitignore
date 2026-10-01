@@ -24,5 +24,8 @@ __pycache__/
 venv/
 .vscode/
 .idea/
+# Configuração local do Claude Code: o atalho de preview e as skills instaladas
+# por projeto. Como rodar o site está no README, e não depende deste arquivo.
+.claude/
 Thumbs.db
 .DS_Store

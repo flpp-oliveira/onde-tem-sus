@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sobre — Onde Tem SUS</title>
+<meta name="description" content="De onde vêm os dados do Onde Tem SUS: CNES/DATASUS, competência 06/2026, e a malha territorial do IBGE.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+  /* Os mesmos tokens do mapa: a página de explicação não é outro produto. */
+  :root{
+    --surface:#fff; --plane:#eef1f4;
+    --ink:#111a26; --ink2:#44525f; --muted:#5f6b76;
+    --line:#dde3e8; --border:rgba(17,26,38,.14);
+    --pub:#15589e; --conv:#9b2242;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    font:15px/1.65 "IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+    color:var(--ink);background:var(--plane);-webkit-font-smoothing:antialiased;
+  }
+  a{color:var(--pub)}
+  a:focus-visible,button:focus-visible{outline:2px solid var(--pub);outline-offset:2px}
+
+  .folha{max-width:680px;margin:0 auto;padding:40px 24px 72px}
+  .marca{display:flex;align-items:center;gap:11px;margin-bottom:34px}
+  .marca svg{width:34px;height:34px;flex:none}
+  .marca span{font-size:19px;font-weight:500;letter-spacing:-.01em}
+  .marca b{font-weight:600}
+
+  h1{font-size:30px;font-weight:600;letter-spacing:-.025em;line-height:1.2;margin:0 0 10px}
+  .linha-fina{font-size:15px;color:var(--muted);margin:0 0 34px}
+
+  section{
+    background:var(--surface);border-radius:14px;padding:24px 26px;margin-bottom:14px;
+    box-shadow:0 1px 2px rgba(17,26,38,.05), 0 6px 20px rgba(17,26,38,.07);
+  }
+  h2{font-size:17px;font-weight:600;letter-spacing:-.012em;margin:0 0 12px}
+  p{margin:0 0 12px;color:var(--ink2)}
+  p:last-child{margin-bottom:0}
+  strong{color:var(--ink);font-weight:600}
+
+  /* A citação é para ser copiada: fundo próprio, recuo de referência e um
+     tamanho que não some no meio do texto corrido. */
+  .citacao{
+    margin:0;padding:15px 17px;background:var(--plane);border-radius:10px;
+    border-left:3px solid var(--pub);
+    font-size:14px;line-height:1.6;color:var(--ink2);
+    padding-left:34px;text-indent:-17px;
+  }
+  dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:9px 18px;font-size:14.5px}
+  dt{color:var(--muted)}
+  dd{margin:0;color:var(--ink2)}
+
+  .voltar{
+    display:inline-flex;align-items:center;gap:8px;margin-top:30px;
+    padding:11px 18px;border-radius:999px;text-decoration:none;
+    background:var(--pub);color:#fff;font-weight:600;font-size:14.5px;
+  }
+  .voltar svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:2;
+    stroke-linecap:round;stroke-linejoin:round}
+
+  @media (max-width:560px){
+    .folha{padding:28px 18px 56px}
+    h1{font-size:25px}
+    section{padding:20px 18px}
+    dl{grid-template-columns:1fr;gap:2px 0}
+    dt{margin-top:8px}
+  }
+</style>
+</head>
+<body>
+<div class="folha">
+
+  <div class="marca">
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+        <g transform="rotate(-90 12 12)" fill="none" stroke-width="4.4">
+          <circle cx="12" cy="12" r="9" pathLength="100" stroke="#15589e"
+                  stroke-dasharray="75.3 24.7"/>
+          <circle cx="12" cy="12" r="9" pathLength="100" stroke="#9b2242"
+                  stroke-dasharray="24.7 75.3" stroke-dashoffset="-75.3"/>
+        </g>
+      </svg>
+    <span>Onde Tem <b>SUS</b></span>
+  </div>
+
+  <h1>A rede do SUS no mapa</h1>
+  <p class="linha-fina">Onde estão os 108.558 estabelecimentos de saúde ativos com
+     atendimento pelo SUS, em todos os 5.571 municípios que têm algum.</p>
+
+  <section>
+    <h2>O que este mapa mostra</h2>
+    <p>Cada ponto é um estabelecimento cadastrado no <strong>CNES</strong>, o
+       Cadastro Nacional de Estabelecimentos de Saúde. O azul marca os de
+       administração pública; o vinho, os privados conveniados ao SUS.</p>
+    <p>A busca e os filtros avançados recortam esse conjunto por estado,
+       município, bairro, tipo de estabelecimento, serviço especializado,
+       turno de atendimento e natureza jurídica.</p>
+  </section>
+
+  <section>
+    <h2>De onde vêm os dados</h2>
+    <p class="citacao">BRASIL. Ministério da Saúde. DATASUS. <strong>Cadastro
+       Nacional de Estabelecimentos de Saúde (CNES)</strong>, competência
+       06/2026.</p>
+    <dl style="margin-top:16px">
+      <dt>Competência</dt><dd>junho de 2026</dd>
+      <dt>Estabelecimentos</dt><dd>108.558 ativos com atendimento pelo SUS</dd>
+      <dt>Base territorial</dt><dd>malha de unidades da federação e de municípios do IBGE</dd>
+      <dt>Carta de fundo</dt><dd>OpenFreeMap, com dados do OpenStreetMap</dd>
+    </dl>
+  </section>
+
+  <section>
+    <h2>Sobre a precisão</h2>
+    <p>Os endereços e as coordenadas vêm do CNES exatamente como cada gestor
+       local os declarou, <strong>sem correção automática</strong>. Um ponto
+       pode estar deslocado, repetido, ou marcar um endereço que mudou.</p>
+    <p>Se você conhece um estabelecimento nessa situação, abra a ficha dele no
+       mapa e use <strong>Reportar localização</strong>. As correções enviadas
+       ficam registradas para conferência.</p>
+  </section>
+
+  <a class="voltar" href="./">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>
+    Voltar ao mapa
+  </a>
+
+</div>
+</body>
+</html>
