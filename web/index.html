@@ -42,7 +42,11 @@
     color-scheme:dark;
   }
   *{box-sizing:border-box}
-  html,body{margin:0;height:100%}
+  /* O <html> também precisa fechar, e não só o <body>. Com overflow visível
+     nele, bastava o navegador rolar um botão para dentro da vista — ao abrir
+     o painel, por exemplo — para a página inteira deslizar e levar o mapa e a
+     busca junto. Num mapa de tela cheia nada deve rolar fora dos painéis. */
+  html,body{margin:0;height:100%;overflow:hidden;overscroll-behavior:none}
   body{
     font:14px/1.55 "IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
     color:var(--ink);-webkit-font-smoothing:antialiased;
@@ -487,11 +491,34 @@
     .corpo{border-top:0}
     .folha:not(.recolhida) .corpo{border-top:1px solid var(--line)}
 
+    /* O "colunado" é do painel alto do computador: lá a capa fica parada e
+       só a lista rola, numa caixa própria. Numa folha de celular não há
+       altura para dividir — a caixa da lista ficava com 0 px na parada do
+       meio e 74 px na alta, uma linha e meia de 540 estabelecimentos. O
+       dedo deslizava e nada acontecia, porque o que deveria rolar não tinha
+       tamanho. Aqui a folha volta a ser um texto só, que rola inteiro: o
+       gesto funciona em qualquer ponto e em qualquer parada, sem precisar
+       expandir. */
+    .corpo.colunado{display:block;overflow-y:auto}
+    .corpo.colunado .rolavel{display:block;min-height:0}
+    .corpo.colunado .rolavel .lista{overflow:visible;min-height:0}
+
     /* Os controles do MapLibre moram no canto de baixo do CONTÊINER do mapa,
-       que vai até o fim da tela — ou seja, atrás da folha. Sobem para encostar
-       nela, e acompanham quando ela é arrastada. */
+       que vai até o fim da tela — ou seja, atrás da folha. Sobem o bastante
+       para encostar nela RECOLHIDA, e param aí.
+
+       A medida é --folha-min, e não --folha: a segunda é a altura corrente, e
+       amarrar a ela fazia o zoom escalar a tela junto com o arrasto, até
+       terminar no alto, longe do polegar e em cima do mapa. Presos no mínimo,
+       a folha passa por cima deles ao abrir — que é o que se espera de uma
+       folha, e o que o mapa do Google faz. */
     .maplibregl-ctrl-bottom-right,
-    .maplibregl-ctrl-bottom-left{bottom:var(--folha, 56px)}
+    .maplibregl-ctrl-bottom-left{
+      bottom:var(--folha-min, 56px);
+      /* e por baixo do painel, que é z-index 2. Sem isto o zoom e a escala
+         continuavam no lugar certo, mas pintados sobre o texto da folha. */
+      z-index:1;
+    }
     body.com-gaveta aside{left:0}
 
     /* o trilho deixa de ser uma coluna e vira um botao solto sobre o mapa */
@@ -514,8 +541,10 @@
        alto elas disputavam o lugar com a busca, que é a porta de entrada e
        tem precedência. À esquerda porque a direita é dos controles de zoom. */
     .camadas{
-      left:12px;right:auto;top:auto;bottom:calc(var(--folha, 56px) + 12px);
-      transition:bottom .22s ease;
+      left:12px;right:auto;top:auto;bottom:calc(var(--folha-min, 56px) + 12px);
+      /* abaixo do painel, que é z-index 2: assim a folha desliza por cima em
+         vez de empurrar o botão para fora do alcance da mão */
+      z-index:1;
     }
     body.com-gaveta .camadas{left:12px}
     /* volta a abrir para a direita, que agora é o lado com espaço */
@@ -1647,6 +1676,14 @@
 
   // ---- painel -------------------------------------------------------------
   const corpo = g('corpo'), campo = g('q');
+
+  // Toda vista nova começa do alto. O elemento do painel é reaproveitado
+  // entre as vistas, e esvaziar o conteúdo não zera a rolagem: o navegador
+  // só acerta o deslocamento quando refaz o layout, e aqui o conteúdo novo
+  // entra na mesma tarefa — a posição antiga seguia válida e grudava. Quem
+  // descia até o fim da lista de um município e escolhia outro lugar caía
+  // no meio da vista nova, sem ter rolado nada.
+  const limpaCorpo = () => { corpo.textContent = ''; corpo.scrollTop = 0; };
   let vista = 'inicio';           // inicio | resultados | lugar
 
   const el = (t, cls, txt) => {
@@ -1686,7 +1723,7 @@
     marcaSelecionado(null);
     corpo.className = 'corpo colunado';
     g('bVoltar').hidden = true;
-    corpo.textContent = '';
+    limpaCorpo();
     const capa = el('div','capa');
     capa.appendChild(el('h2', null, 'Brasil'));
     capa.appendChild(el('div','escopo','Rede do SUS no CNES, competência de junho de 2026'));
@@ -1811,7 +1848,7 @@
     marcaSelecionado(null);
     corpo.className = 'corpo';
     g('bVoltar').hidden = false;
-    corpo.textContent = '';
+    limpaCorpo();
     if(chave(termo).length < 2){ verInicio(); return; }
     const achados = busca(termo);
     if(!achados.length){
@@ -1850,7 +1887,7 @@
     marcaSelecionado(null);
     corpo.className = 'corpo';
     g('bVoltar').hidden = false;
-    corpo.textContent = '';
+    limpaCorpo();
     const u = UF[sigla];
     corpo.appendChild(capaDoLugar(NOMES[sigla]||sigla,
       'Estado (' + sigla + ')', u.n, u.pub, u.tm, u.sa, u.sb));
@@ -1888,7 +1925,7 @@
     marcaSelecionado(null);
     corpo.className = 'corpo colunado';
     g('bVoltar').hidden = false;
-    corpo.textContent = '';
+    limpaCorpo();
     const p = f.properties;
     corpo.appendChild(capaDoLugar(p.nome, 'Município (' + (NOMES[p.uf]||p.uf) + ')',
       p.n, p.pub, p.tm, p.sa, p.sb));
@@ -2042,7 +2079,7 @@
     vista = 'estab';
     corpo.className = 'corpo';
     g('bVoltar').hidden = false;
-    corpo.textContent = '';
+    limpaCorpo();
     reportIdx = i;
     marcaSelecionado(i);
 
@@ -2312,7 +2349,7 @@
     marcaSelecionado(null);
     corpo.className = 'corpo colunado';
     g('bVoltar').hidden = false;
-    corpo.textContent = '';
+    limpaCorpo();
     const ids = idsDoBairro(x);
     const pub = ids.reduce((a,i) => a + (estab.esfera[i] === 0 ? 1 : 0), 0);
     const capa = el('div','capa');
@@ -2343,7 +2380,7 @@
     marcaSelecionado(null);
     corpo.className = 'corpo colunado';
     g('bVoltar').hidden = false;
-    corpo.textContent = '';
+    limpaCorpo();
     const ms = munsDaRegiao.get(r) || [];
     const ids = estabDaRegiao(r);
     const pub = ids.reduce((a,i) => a + (estab.esfera[i] === 0 ? 1 : 0), 0);
@@ -2485,7 +2522,7 @@
     marcaSelecionado(null);
     corpo.className = 'corpo';
     g('bVoltar').hidden = false;
-    corpo.textContent = '';
+    limpaCorpo();
     const capa = el('div','capa');
     capa.appendChild(el('h2', null, nome));
     capa.appendChild(el('div','escopo', (ESPECIE[classe] || 'Lugar') +
@@ -3008,7 +3045,17 @@
   const alca = g('alca');
   const recolhida = () => alca.offsetHeight || 56;
   const paradas = () => [recolhida() / innerHeight, 0.58, 0.9];
+  // A altura da folha RECOLHIDA, em pixels e à parte da corrente. Os controles
+  // do mapa e o botão de camadas se penduram nesta, que não muda quando a
+  // folha é arrastada — por isso ficam parados enquanto ela sobe.
+  const poeMinimo = () =>
+    document.documentElement.style.setProperty('--folha-min', recolhida() + 'px');
   let arrasto = null;
+  // Quando o último gesto de ponteiro terminou. O `click` que vem na esteira
+  // de um toque é reconhecido por aqui e ignorado — ver o ouvinte de click,
+  // mais abaixo. Declarada junto do arrasto, e não ao lado de quem a lê:
+  // `let` não sobe, e soltaFolha é escrita antes daquele ponto.
+  let fimDoGesto = 0;
 
   // A parada vigente é GUARDADA, e não medida. Medir a altura no meio da
   // transição devolve a altura antiga, e o toque seguinte decidia pelo estado
@@ -3047,6 +3094,7 @@
     if(!arrasto) return;
     const {andou, atual} = arrasto;
     arrasto = null;
+    fimDoGesto = Date.now();
     folha.classList.remove('arrastando');
     // Menos de 6 px é toque, não arrasto: alterna entre recolhida e a de
     // sempre, que é o que se espera de um cabeçalho escrito "Painel".
@@ -3059,9 +3107,25 @@
   };
   alca.addEventListener('pointerup', soltaFolha);
   alca.addEventListener('pointercancel', soltaFolha);
-  // A medida é escrita já na partida: sem ela os controles do mapa e a bandeja
-  // de camadas cairiam no valor de reserva do CSS, que é só um palpite.
-  if(innerWidth <= 820) vaiPara(0);
+
+  // O teclado não tem ponteiro. Apertar Enter ou Espaço com a alça em foco
+  // dispara `click`, e nenhum dos quatro eventos acima — então quem navegava
+  // por teclado numa janela estreita recebia o foco na alça e não conseguia
+  // abrir o painel, enquanto o aria-expanded continuava prometendo que dava.
+  //
+  // O `click` também vem depois de todo toque, logo em seguida ao pointerup, e
+  // aí alternaria a folha uma segunda vez: o dedo abriria e fecharia no mesmo
+  // gesto. Daí o carimbo de hora. Carimbo, e não um sinal ligado e desligado,
+  // porque arrasto que termina fora do botão às vezes não produz click nenhum
+  // — o sinal ficaria preso, e engoliria o Enter seguinte.
+  alca.addEventListener('click', () => {
+    if(innerWidth > 820) return;
+    if(Date.now() - fimDoGesto < 700) return;
+    vaiPara(parada === 0 ? 1 : 0);
+  });
+  // As medidas são escritas já na partida: sem elas os controles do mapa e a
+  // bandeja de camadas cairiam no valor de reserva do CSS, que é só um palpite.
+  if(innerWidth <= 820){ poeMinimo(); vaiPara(0); }
 
   // ---- girar o aparelho ---------------------------------------------------
   // O enquadramento é calculado para o formato da tela: girando o aparelho, ou
@@ -3072,6 +3136,10 @@
                       + (innerWidth > innerHeight ? ' deitado' : ' em pé');
   let formatoAnterior = formato(), girando = null;
   addEventListener('resize', () => {
+    // O mínimo é remedido a cada mudança de tamanho, e não só quando o formato
+    // vira: a altura do cabeçalho depende da largura disponível e do corpo de
+    // letra, e os dois mudam sem que o formato mude.
+    if(innerWidth <= 820) poeMinimo();
     clearTimeout(girando);
     girando = setTimeout(() => {
       const agora = formato();
