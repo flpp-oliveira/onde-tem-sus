@@ -2878,13 +2878,21 @@
     return melhor < 0 ? -1 : munDe[melhor];
   }
 
+  // Qual bairro do cadastro corresponde a este rótulo da carta, se houver.
+  // Mora fora de verLugarCarta porque a volta também precisa da resposta: na
+  // pilha o rótulo é um nível do tipo `lugar`, e só esta conta diz que o
+  // `lugar` aberto e o bairro declarado pela ficha são o mesmo canto.
+  function bairroDoRotulo(nome, m){
+    const ids = m >= 0 ? (estabPorMun.get(m) || []) : [];
+    for(const i of ids)
+      if(casaNome(nome, catalogo.bairros[bairroDe[i]] || '')) return bairroDe[i];
+    return -1;
+  }
+
   function verLugarCarta(nome, classe, lng, lat0){
     const m = municipioDe(lng, lat0);
     const ids = m >= 0 ? (estabPorMun.get(m) || []) : [];
-    // o bairro do cadastro que corresponde a este rótulo, se houver
-    let b = -1;
-    for(const i of ids)
-      if(casaNome(nome, catalogo.bairros[bairroDe[i]] || '')){ b = bairroDe[i]; break; }
+    const b = bairroDoRotulo(nome, m);
     if(b >= 0){
       verBairro({tipo:'bairro', m, b, nome: cap(catalogo.bairros[b]),
                  mun: cap(catalogo.muns[m]), uf: catalogo.ufs[catalogo.munUF[m]],
@@ -2977,6 +2985,15 @@
     if(!viaRegiao || !regiaoDe || m === undefined || m < 0) return null;
     return regiaoDe[m] === viaRegiao.r ? viaRegiao : null;
   }
+  // O bairro entra na cadeia da ficha so quando foi o bairro de onde se saiu.
+  // Devolve o PROPRIO nivel da pilha, nao uma copia deduzida do cadastro: ele
+  // ja traz a camera guardada, e e para ela que a volta tem de regressar.
+  function bairroNaPilha(m, b){
+    return pilha.find(x =>
+      (x.tipo === 'bairro' && x.x.m === m && x.x.b === b) ||
+      (x.tipo === 'lugar'  && x.m === m && bairroDoRotulo(x.nome, m) === b)
+    ) || null;
+  }
   function cadeia(e){
     const c = [{tipo:'inicio'}];
     if(raizBusca) c.push(raizBusca);
@@ -3003,15 +3020,14 @@
       c.push({tipo:'regiao', r:ctx.r});
     }
     if(f && e.tipo !== 'mun') c.push({tipo:'mun', f});
-    // O bairro é nível de verdade, não histórico: a ficha mora nele, e é para
-    // ele que a volta tem de subir antes de chegar ao município. Sai do que o
-    // próprio estabelecimento declara, então vale mesmo quando o pino foi
-    // aberto direto no mapa.
+    // A ficha sobe direto para o município — exceto quando se estava dentro de
+    // um bairro, e é esse bairro que a ficha declara. Deduzir o bairro do
+    // cadastro, como se fazia, punha no caminho de volta uma parada que ninguém
+    // tinha escolhido: quem abriu um pino no mapa quer sair dele para a cidade.
+    // Quem entrou no bairro de propósito, não: ali a volta é para o bairro.
     if(e.tipo === 'estab' && f){
-      const m = f.properties.m, b = bairroDe[e.i], nb = catalogo.bairros[b];
-      if(nb) c.push({tipo:'bairro', x:{tipo:'bairro', m, b, nome:cap(nb),
-        mun:cap(catalogo.muns[m]), uf:catalogo.ufs[catalogo.munUF[m]],
-        n:(estabPorMun.get(m) || []).filter(k => bairroDe[k] === b).length}});
+      const bai = bairroNaPilha(f.properties.m, bairroDe[e.i]);
+      if(bai) c.push(bai);
     }
     c.push(e);
     return c;
