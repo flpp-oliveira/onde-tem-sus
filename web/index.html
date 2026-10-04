@@ -1663,7 +1663,12 @@
   // um quadrado girado com três cantos redondos, e o quarto, de baixo, vira a
   // ponta que crava no lugar. Desenhada em dobro e registrada com pixelRatio 2,
   // para sair nítida em tela densa. A margem em volta é da sombra.
-  function imagemDaGota(cor, letra){
+  // Na versão "escolhida", a borda branca vira azul: a gota aberta é da MESMA
+  // cor das vizinhas da categoria, e só crescer não bastava para achá-la num
+  // grupo de três ou quatro gotas iguais. O azul é claro e vivo, para se
+  // distinguir também sobre a gota azul-escura dos postos.
+  const BORDA_ESCOLHIDA = '#2b9bff';
+  function imagemDaGota(cor, letra, escolhida){
     const k = 2, L = 40, A = 48;
     const c = document.createElement('canvas');
     c.width = L * k; c.height = A * k;
@@ -1674,7 +1679,10 @@
     x.shadowColor = 'rgba(22,32,44,.35)'; x.shadowBlur = 5; x.shadowOffsetY = 2;
     x.fillStyle = cor; x.fill(gota);
     x.shadowColor = 'transparent';
-    x.lineWidth = 2.5; x.strokeStyle = '#fff'; x.lineJoin = 'round'; x.stroke(gota);
+    x.lineJoin = 'round';
+    x.lineWidth = escolhida ? 3.5 : 2.5;
+    x.strokeStyle = escolhida ? BORDA_ESCOLHIDA : '#fff';
+    x.stroke(gota);
     x.fillStyle = '#fff';
     x.font = '700 13px "IBM Plex Sans", system-ui, sans-serif';
     x.textAlign = 'center'; x.textBaseline = 'middle';
@@ -1696,9 +1704,12 @@
     const C = CORES();
     if(map.getSource('ufs')) return;
     if(!map.hasImage('cruz')) map.addImage('cruz', imagemDaCruz(), {pixelRatio:2});
-    for(const c of CATEGORIAS)
+    for(const c of CATEGORIAS){
       if(!map.hasImage('gota-' + c.id))
         map.addImage('gota-' + c.id, imagemDaGota(c.cor, c.letra), {pixelRatio:2});
+      if(!map.hasImage('gota-' + c.id + '-sel'))
+        map.addImage('gota-' + c.id + '-sel', imagemDaGota(c.cor, c.letra, true), {pixelRatio:2});
+    }
     map.addSource('ufs', {type:'geojson', data:ufsGeo});
     map.addSource('ufsPt', {type:'geojson', data:ufsPontos});
     map.addSource('mun', {type:'geojson', data:municipios, generateId:true});
@@ -3027,13 +3038,18 @@
         map.setLayoutProperty(id, 'visibility', ativo ? 'none' : 'visible');
   }
 
-  // A gota da ficha aberta cresce e passa para cima das vizinhas. Faz o papel
-  // do alfinete das outras telas, sem trocar de desenho.
+  // A gota escolhida (cartão ou ficha aberta) cresce um pouco, ganha a borda
+  // azul e passa para cima das vizinhas. Faz o papel do alfinete das outras
+  // telas.
+  const REALCE_GOTA = 1.3;
   function realcaGota(sel){
     if(sel === gotaRealcada || !map.getLayer('perto-gota')) return;
     gotaRealcada = sel;
+    const eSel = ['==', ['get','i'], sel];
+    map.setLayoutProperty('perto-gota', 'icon-image',
+      ['concat', 'gota-', ['get','c'], ['case', eSel, '-sel', '']]);
     map.setLayoutProperty('perto-gota', 'icon-size',
-      ['case', ['==', ['get','i'], sel], 1.3, 1]);
+      ['case', eSel, REALCE_GOTA, 1]);
     map.setLayoutProperty('perto-gota', 'symbol-sort-key',
       ['case', ['==', ['get','i'], sel], 1, ['-', 0, ['get','ordem']]]);
   }
