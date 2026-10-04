@@ -47,6 +47,7 @@
     --line:#dde3e8; --border:rgba(17,26,38,.14);
     --pub:#15589e; --conv:#9b2242;
     --toque:#e7ecf1; --toque2:#f4f7f9;
+    --ok:#1a7f4b;
     --painel:408px; --trilho:44px; --gaveta:330px;
     color-scheme:light;
   }
@@ -62,6 +63,7 @@
     --line:#2c3642; --border:rgba(255,255,255,.16);
     --pub:#58a0e4; --conv:#e4698c;
     --toque:#27313d; --toque2:#222b36;
+    --ok:#5cc48d;
     color-scheme:dark;
   }
   *{box-sizing:border-box}
@@ -300,6 +302,62 @@
   /* A distância é dado derivado, não cadastral: fica mais leve que o nome e
      alinhada pela direita, como os números de contagem da lista. */
   .lista .dist{font-variant-numeric:tabular-nums;font-size:12.5px;color:var(--muted);flex:none}
+
+  /* ---------- perto de você ----------
+     A tela de quem ligou a localização. As cores das categorias são as da
+     proposta e valem nos dois temas: a letra é branca sobre a cor, e a cor
+     é a mesma do pino na carta, que é sempre clara. */
+  /* Chips numa linha corrida, e não grade de ladrilhos: são sete, e a grade
+     de três colunas gastava três linhas de 68 px e deixava um sozinho. */
+  .precisa{display:flex;flex-wrap:wrap;gap:6px}
+  .precisa button{
+    display:inline-flex;align-items:center;gap:7px;min-height:34px;
+    padding:4px 12px 4px 5px;border-radius:999px;
+    border:1.5px solid var(--line);background:var(--surface);color:var(--ink);
+    font:inherit;font-size:12.5px;font-weight:500;cursor:pointer;line-height:1.2;
+  }
+  .precisa button:hover{background:var(--toque2)}
+  /* a borda tem a mesma espessura nos dois estados: o chip não pula ao marcar */
+  .precisa button[aria-pressed=true]{border-color:var(--pub);background:var(--toque)}
+  .letra{width:24px;height:24px;border-radius:999px;display:grid;place-items:center;
+    color:#fff;font-size:11.5px;font-weight:700;flex:none}
+  .lista.perto button{padding:9px 18px}
+  .lista.perto .marca{width:30px;height:30px;border-radius:8px;color:#fff;
+    font-size:12.5px;font-weight:700}
+  /* Quebra só quando não cabe: cortar com reticências comeria o turno, que
+     é justamente o que diz se vale a pena ir agora. */
+  .lista.perto .txt > span{display:block}
+  .lista.perto .txt .h24{color:var(--ok);font-weight:500}
+  .lista.perto + .chamada{margin:10px 0 0}
+
+  /* O cartão de um local, preso à gota. É o popup do MapLibre com a pele do
+     painel: as mesmas cores de superfície e tinta, então segue o tema. */
+  .cartao .maplibregl-popup-content{
+    padding:14px 16px 16px;border-radius:14px;width:280px;max-width:calc(100vw - 32px);
+    background:var(--surface);color:var(--ink);font:inherit;
+    box-shadow:0 10px 30px rgba(22,32,44,.22);
+  }
+  .cartao.maplibregl-popup-anchor-bottom .maplibregl-popup-tip{border-top-color:var(--surface)}
+  .cartao .maplibregl-popup-close-button{
+    width:32px;height:32px;font-size:20px;color:var(--muted);border-radius:8px;top:6px;right:6px;
+  }
+  .cartao .maplibregl-popup-close-button:hover{background:var(--toque2);color:var(--ink)}
+  .cartao .cab{display:flex;align-items:center;gap:7px;margin:0 30px 8px 0;
+    font-size:12px;color:var(--ink2);font-weight:500}
+  .cartao .cab .letra{width:22px;height:22px;font-size:11px}
+  .cartao .selo{font-size:11.5px;font-weight:600;color:#fff;background:var(--ok);
+    padding:2px 7px;border-radius:6px}
+  .cartao .nome{display:block;font-size:16px;font-weight:600;line-height:1.3;margin-bottom:4px}
+  .cartao .sub{font-size:12.5px;color:var(--ink2);line-height:1.45}
+  .cartao .acoes{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+  .cartao .acoes a,.cartao .acoes button{
+    display:flex;align-items:center;justify-content:center;height:42px;border-radius:9px;
+    border:0;font:inherit;font-size:14px;font-weight:600;text-decoration:none;cursor:pointer;
+  }
+  .cartao .acoes a{background:var(--pub);color:#fff}
+  .cartao .acoes a:hover{background:#0d3f78}
+  .cartao .acoes button{background:var(--toque);color:var(--ink)}
+  .cartao .acoes button:hover{background:var(--line)}
 
   .vazio{padding:28px 18px;color:var(--muted);font-size:13px;text-align:center}
   .dica{padding:16px 18px;color:var(--muted);font-size:12.5px;line-height:1.55}
@@ -653,6 +711,11 @@
     /* o numero cede um pouco: a folha tem menos altura para gastar */
     .grande b{font-size:36px}
     .capa h2{font-size:22px}
+    /* Em "Perto de você" a alça já diz o nome da tela, e o título logo
+       abaixo dela era eco. Sai só da vista: a alça lê o rótulo deste h2. */
+    .capa.perto{padding-top:12px}
+    .capa.perto h2{display:none}
+    .capa.perto .escopo{font-size:13px;color:var(--ink2)}
   }
 
   /* A mesma regra vale por ALTURA, e não só por largura.
@@ -975,6 +1038,49 @@
     ['CAPS',                ['CENTRO DE ATENCAO PSICOSSOCIAL']],
   ].map(([rot, nomes]) => ({rot,
       tipos: new Set(nomes.map(x => catalogo.tipos.indexOf(x)).filter(k => k >= 0))}));
+
+  // As categorias de "Do que você precisa?". Não são os GRUPOS: aqueles
+  // descrevem o que um lugar TEM, estas respondem ao que a pessoa PROCURA —
+  // e quem procura vacina acha também o posto que vacina, não só o centro de
+  // imunização. Por isso a vacina olha o serviço, além do tipo. Casam por
+  // nome no catálogo, pelo mesmo motivo dos GRUPOS. As cores são da proposta.
+  const SERV_IMUNI = catalogo.servicos.indexOf('IMUNIZACAO');
+  const CATEGORIAS = [
+    ['ubs',   'U', 'Posto / UBS',  '#1d5a9e', ['CENTRO DE SAUDE/UNIDADE BASICA','POSTO DE SAUDE']],
+    ['urg',   'P', 'Urgência',     '#b4361f', ['PRONTO ATENDIMENTO','PRONTO SOCORRO GERAL',
+                                               'PRONTO SOCORRO ESPECIALIZADO']],
+    ['hosp',  'H', 'Hospital',     '#5b3a8c', ['HOSPITAL GERAL','HOSPITAL ESPECIALIZADO']],
+    ['farm',  'F', 'Farmácia',     '#1a7f4b', ['FARMACIA']],
+    ['mente', 'C', 'Saúde mental', '#a35c00', ['CENTRO DE ATENCAO PSICOSSOCIAL']],
+    ['vac',   'V', 'Vacina',       '#2b6f86', ['CENTRO DE IMUNIZACAO']],
+    // Fora da proposta: sem ela o centro de especialidades e a reabilitação
+    // (o CER é cadastrado como clínica) sumiam da tela, e é procura comum
+    // de quem já passou pelo posto e foi encaminhado.
+    ['esp',   'E', 'Especialidades', '#a8336f', ['CLINICA/CENTRO DE ESPECIALIDADE','POLICLINICA']],
+  ].map(([id, letra, rot, cor, nomes]) => ({id, letra, rot, cor,
+      tipos: new Set(nomes.map(x => catalogo.tipos.indexOf(x)).filter(k => k >= 0)),
+      serv: id === 'vac' ? SERV_IMUNI : -1}));
+  const naCategoria = (c, i) => c.tipos.has(tipoDe[i]) || (c.serv >= 0 && servDe[i].includes(c.serv));
+  // Sem categoria escolhida, a letra vem do TIPO: o posto que vacina é U.
+  const categoriaDoTipo = i => CATEGORIAS.find(c => c.tipos.has(tipoDe[i])) ||
+                               CATEGORIAS.find(c => naCategoria(c, i)) || null;
+
+  // O turno por extenso não cabe numa linha de lista: "Atendimentos nos
+  // turnos da manhã e à tarde". Por nome, como o resto do catálogo.
+  const TURNO_CURTO = new Map([
+    ['ATENDIMENTOS NOS TURNOS DA MANHA E A TARDE', 'Manhã e tarde'],
+    ['ATENDIMENTO CONTINUO DE 24 HORAS/DIA (PLANTAO:INCLUI SABADOS, DOMINGOS E FERIADOS)', '24 horas, todos os dias'],
+    ['ATENDIMENTO NOS TURNOS DA MANHA, TARDE E NOITE', 'Manhã, tarde e noite'],
+    ['ATENDIMENTO SOMENTE PELA MANHA', 'Só de manhã'],
+    ['ATENDIMENTO SOMENTE A TARDE', 'Só à tarde'],
+    ['ATENDIMENTO COM TURNOS INTERMITENTES', 'Turnos intermitentes'],
+    ['ATENDIMENTO SOMENTE A NOITE', 'Só à noite'],
+  ]);
+  const TURNO_24H = catalogo.turnos.findIndex(t => t.startsWith('ATENDIMENTO CONTINUO DE 24'));
+  const turnoCurto = i => {
+    const t = catalogo.turnos[turnoDe[i]];
+    return t === undefined ? '' : (TURNO_CURTO.get(t) || capCat(t));
+  };
 
   // ---- região de saúde ----------------------------------------------------
   // Recorte do Decreto 7.508/2011: um grupo de municípios vizinhos que combina
@@ -1371,13 +1477,11 @@
     const m0 = municipioDe(p.coords.longitude, p.coords.latitude);
     observador = {lat:p.coords.latitude, lon:p.coords.longitude,
                   precisao:p.coords.accuracy, mun:m0};
-    const f = munPorIndice.get(m0);
-    if(f) vaiParaMun(f);
-    // Enquadrar o município inteiro afastaria de novo; quem pediu a própria
-    // localização quer ver o que está em volta DELA. O ponto azul é desenhado
-    // pelo controle do MapLibre.
-    map.flyTo({center:[observador.lon, observador.lat], zoom:14,
-               duration:900, padding:FOLGA()});
+    // Quem liga a localização quer saber o que tem em volta DELA: a tela
+    // "Perto de você" responde isso, e o voltar leva ao município. O ponto
+    // azul é desenhado pelo controle do MapLibre.
+    campo.value = ''; g('bLimpar').hidden = true;
+    vaiParaPerto();
   });
 
   // As cores que desenhamos POR CIMA da carta mudam com ela. Ficavam literais
@@ -1416,10 +1520,45 @@
     return x.getImageData(0, 0, n, n);
   }
 
+  // A gota da tela "Perto de você", uma por categoria: a forma da proposta —
+  // um quadrado girado com três cantos redondos, e o quarto, de baixo, vira a
+  // ponta que crava no lugar. Desenhada em dobro e registrada com pixelRatio 2,
+  // para sair nítida em tela densa. A margem em volta é da sombra.
+  function imagemDaGota(cor, letra){
+    const k = 2, L = 40, A = 48;
+    const c = document.createElement('canvas');
+    c.width = L * k; c.height = A * k;
+    const x = c.getContext('2d');
+    x.scale(k, k);
+    // círculo de raio 16 em (20,19); as tangentes a 45° fecham na ponta (20,41,6)
+    const gota = new Path2D('M20 41.6 L8.7 30.3 A16 16 0 1 1 31.3 30.3 Z');
+    x.shadowColor = 'rgba(22,32,44,.35)'; x.shadowBlur = 5; x.shadowOffsetY = 2;
+    x.fillStyle = cor; x.fill(gota);
+    x.shadowColor = 'transparent';
+    x.lineWidth = 2.5; x.strokeStyle = '#fff'; x.lineJoin = 'round'; x.stroke(gota);
+    x.fillStyle = '#fff';
+    x.font = '700 13px "IBM Plex Sans", system-ui, sans-serif';
+    x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.fillText(letra, 20, 19.5);
+    return x.getImageData(0, 0, c.width, c.height);
+  }
+
+  // Estado da tela "Perto de você", declarado aqui em cima porque o
+  // montaCamadas — que roda já no carregamento — repõe as gotas a cada troca
+  // de carta e precisa ler estas variáveis. `pertoPronto` só vira verdadeiro
+  // depois que a seção inteira da tela foi lida.
+  let pertoCat = null;            // id da categoria escolhida, ou null
+  let pertoIds = [];              // os da lista vigente, do mais perto ao mais longe
+  let pertoNoMapa = null, pertoPronto = false, gotaRealcada = null;
+  let cartao = null, cartaoIdx = -1;      // o popup aberto e de qual local
+
   function montaCamadas(){
     const C = CORES();
     if(map.getSource('ufs')) return;
     if(!map.hasImage('cruz')) map.addImage('cruz', imagemDaCruz(), {pixelRatio:2});
+    for(const c of CATEGORIAS)
+      if(!map.hasImage('gota-' + c.id))
+        map.addImage('gota-' + c.id, imagemDaGota(c.cor, c.letra), {pixelRatio:2});
     map.addSource('ufs', {type:'geojson', data:ufsGeo});
     map.addSource('ufsPt', {type:'geojson', data:ufsPontos});
     map.addSource('mun', {type:'geojson', data:municipios, generateId:true});
@@ -1499,6 +1638,19 @@
               'icon-ignore-placement':true,
               'icon-size':['interpolate',['linear'],['zoom'],14.6,0.5,16,0.78]},
       paint:{'icon-opacity':['interpolate',['linear'],['zoom'],14.6,0,15.3,1]}});
+
+    // As gotas da tela "Perto de você". Vazias fora dela. A ponta crava no
+    // ponto (âncora embaixo, menos a margem da sombra), e o mais perto fica
+    // por cima quando duas se encostam.
+    map.addSource('perto', {type:'geojson', data:{type:'FeatureCollection', features:[]}});
+    map.addLayer({id:'perto-gota', type:'symbol', source:'perto',
+      layout:{'icon-image':['concat','gota-',['get','c']],
+              'icon-anchor':'bottom', 'icon-offset':[0, 3],
+              'icon-allow-overlap':true, 'icon-ignore-placement':true,
+              'symbol-sort-key':['-', 0, ['get','ordem']]}});
+    pertoNoMapa = null;           // o estilo novo nasce sem gotas: refazer
+    gotaRealcada = null;          // ...nem realce
+    queueMicrotask(sincronizaPerto);
 
     // O realce do rótulo da carta: a camada é do estilo de fundo, então isto
     // é refeito a cada troca. A guarda de tipo evita embrulhar duas vezes e
@@ -2100,8 +2252,9 @@
     // entao a fila roda logo depois de o conteudo estar no lugar. Chamar aqui
     // mesmo leria o painel vazio que acabamos de esvaziar.
     queueMicrotask(preveNaAlca);
+    queueMicrotask(sincronizaPerto);
   };
-  let vista = 'inicio';           // inicio | resultados | lugar
+  let vista = 'inicio';           // inicio | resultados | lugar | perto | estab
 
   const el = (t, cls, txt) => {
     const e = document.createElement(t);
@@ -2463,6 +2616,331 @@
     return s2;
   }
 
+  // ---- perto de você ------------------------------------------------------
+  // A tela de quem ligou a localização: não é um lugar, é uma pergunta — do
+  // que eu preciso, e o que tem disso perto. Por isso ela não tem contagem
+  // nem capas: tem as categorias e os mais próximos, em ordem de distância.
+  const MAX_PERTO = 20;          // com uma categoria escolhida
+  const POR_CATEGORIA = 3;        // sem escolha: os mais perto de cada uma
+  // A categoria pela qual cada local entrou na lista. É ela que dá a letra:
+  // o posto que entrou como vacina aparece como V, senão a vacina sumiria.
+  let pertoCatDe = new Map();
+
+  // Os mais próximos de quem olha. A conta passa pelos 108 mil, mas é um
+  // haversine e uma comparação por ponto: poucos milissegundos, e só roda ao
+  // entrar na tela ou trocar de categoria.
+  //
+  // Sem categoria escolhida, os 20 mais perto no geral viravam uma lista de
+  // hospitais onde há muitos juntos — em São Paulo eram 9 de 20. Os três mais
+  // perto de CADA categoria respondem melhor à pergunta da tela: o posto, a
+  // urgência e a farmácia mais perto aparecem sempre.
+  function maisPerto(cat){
+    const cats = cat ? CATEGORIAS.filter(x => x.id === cat) : CATEGORIAS;
+    const cand = cats.map(() => []);
+    for(let i = 0; i < N; i++){
+      let d = -1;
+      cats.forEach((c, k) => {
+        if(!naCategoria(c, i)) return;
+        if(d < 0) d = haversine(observador.lat, observador.lon, lat[i], lon[i]);
+        cand[k].push([d, i]);
+      });
+    }
+    pertoCatDe = new Map();
+    const lim = cat ? MAX_PERTO : POR_CATEGORIA;
+    const esc = [];
+    cats.forEach((c, k) => {
+      cand[k].sort((a, b) => a[0] - b[0]);
+      let n = 0;
+      for(const [d, i] of cand[k]){
+        if(n >= lim) break;
+        if(pertoCatDe.has(i)) continue;      // já entrou por outra categoria
+        pertoCatDe.set(i, c);
+        esc.push([d, i]);
+        n++;
+      }
+    });
+    esc.sort((a, b) => a[0] - b[0]);
+    return esc.map(x => x[1]);
+  }
+
+  function itemPerto(i){
+    const c = pertoCatDe.get(i) || categoriaDoTipo(i);
+    const li = el('li'), b = el('button');
+    const m = el('div', 'marca', c.letra);
+    m.style.background = c.cor;
+    m.setAttribute('aria-hidden', 'true');
+    b.appendChild(m);
+    const t = el('div', 'txt');
+    t.appendChild(el('b', null, ficha ? (cap(ficha.nome[i]) || '—') : '…'));
+    // Tipo, natureza e turno numa linha só: a lista é para comparar de
+    // relance, e a terceira linha custava um terço da altura de cada local.
+    const meta = el('span', null, capCat(catalogo.tipos[tipoDe[i]]) + ' · ' +
+      (estab.esfera[i] === 0 ? 'pública' : 'conveniada'));
+    const tc = turnoCurto(i);
+    if(tc){
+      meta.appendChild(document.createTextNode(' · '));
+      meta.appendChild(el('span', turnoDe[i] === TURNO_24H ? 'h24' : null, tc));
+    }
+    t.appendChild(meta);
+    b.appendChild(t);
+    b.appendChild(el('span', 'dist',
+      distancia(haversine(observador.lat, observador.lon, lat[i], lon[i]))));
+    b.onclick = () => abreCartao(i, true);
+    li.appendChild(b);
+    return li;
+  }
+
+  // ---- o cartão: Rota e Ficha -----------------------------------------------
+  // Tocar num local de "Perto de você" não sai da tela: abre um cartão sobre a
+  // gota com o essencial e as duas ações que a proposta pediu. A ficha
+  // inteira fica a um toque; sair da lista para ver o endereço, não mais.
+  function fechaCartao(){
+    if(cartao) cartao.remove();   // o 'close' do popup limpa o resto
+  }
+  function abreCartao(i, daLista){
+    fechaCartao();
+    const c = pertoCatDe.get(i) || categoriaDoTipo(i);
+    const d = haversine(observador.lat, observador.lon, lat[i], lon[i]);
+    const raiz = el('div');
+
+    const cab = el('div', 'cab');
+    const l = el('span', 'letra', c.letra);
+    l.style.background = c.cor;
+    l.setAttribute('aria-hidden', 'true');
+    cab.appendChild(l);
+    cab.appendChild(el('span', null, c.rot));
+    if(turnoDe[i] === TURNO_24H) cab.appendChild(el('span', 'selo', '24 h'));
+    raiz.appendChild(cab);
+
+    raiz.appendChild(el('b', 'nome', ficha ? (cap(ficha.nome[i]) || '—') : '…'));
+    raiz.appendChild(el('div', 'sub', capCat(catalogo.tipos[tipoDe[i]]) + ' · ' +
+      (estab.esfera[i] === 0 ? 'pública' : 'conveniada')));
+    const end = ficha ? cap(ficha.end[i]) : '';
+    const bai = cap(catalogo.bairros[bairroDe[i]] || '');
+    raiz.appendChild(el('div', 'sub',
+      [end, bai].filter(Boolean).join(', ') + (end || bai ? ' · ' : '') + distancia(d)));
+
+    const acoes = el('div', 'acoes');
+    // Só o DESTINO vai no link: a posição de quem olha não sai do aparelho, e
+    // o próprio Maps pega a origem. A coordenada é a do CNES, a mesma do pino.
+    const rota = el('a', null, 'Rota');
+    rota.href = 'https://www.google.com/maps/dir/?api=1&destination=' +
+                lat[i].toFixed(5) + ',' + lon[i].toFixed(5);
+    rota.target = '_blank';
+    rota.rel = 'noopener noreferrer';
+    const fic = el('button', null, 'Ficha');
+    fic.type = 'button';
+    fic.onclick = () => { fechaCartao(); vaiParaEstab(i); };
+    acoes.appendChild(rota);
+    acoes.appendChild(fic);
+    raiz.appendChild(acoes);
+
+    // Preso à gota como ela está DESENHADA: se ela foi afastada da vizinha, o
+    // cartão aponta para ela, e não para o vão entre as duas.
+    const gf = gotas.find(f => f.properties.i === i);
+    const onde = gf ? gf.geometry.coordinates : [lon[i], lat[i]];
+    cartaoIdx = i;
+    cartao = new maplibregl.Popup({className:'cartao', anchor:'bottom', offset:50,
+                                   maxWidth:'none', closeOnClick:true})
+      .setLngLat(onde).setDOMContent(raiz).addTo(map);
+    const este = cartao;
+    cartao.on('close', () => {
+      if(cartao !== este) return;  // um cartão novo já tomou o lugar
+      cartao = null; cartaoIdx = -1;
+      realcaGota(gotaAberta());
+    });
+    realcaGota(i);
+
+    // Da lista, o local pode estar fora do quadro — e no celular a folha
+    // aberta cobre metade do mapa. Ela recolhe e o mapa traz o local para a
+    // faixa livre, com o cartão inteiro acima dele. Tocando na gota, o mapa
+    // só anda se o cartão fosse nascer escondido atrás da busca ou do painel.
+    if(innerWidth <= 820 && daLista) vaiPara(0);
+    const rc = cartao.getElement().getBoundingClientRect();
+    const rm = map.getContainer().getBoundingClientRect();
+    const f = FOLGA();
+    const escondido = rc.top - rm.top < f.top || rc.left - rm.left < f.left ||
+                      rc.right - rm.left > rm.width - f.right;
+    if(daLista || escondido){
+      // A folga é medida com a folha ainda descendo: no celular, a de baixo
+      // vem da folha JÁ recolhida, que é onde ela vai parar.
+      if(innerWidth <= 820) f.bottom = (g('alca').offsetHeight || 56) + 14;
+      f.top += rc.height + 8;
+      map.easeTo({center:onde, duration:500, padding:f});
+    }
+  }
+
+  function verPerto(){
+    fechaCartao();
+    vista = 'perto';
+    marcaSelecionado(null);
+    corpo.className = 'corpo colunado';
+    limpaCorpo();
+    pertoIds = maisPerto(pertoCat);
+    if(!ficha) aoChegarFicha = () => { if(vista === 'perto') verPerto(); };
+
+    const capa = el('div', 'capa perto');
+    capa.appendChild(el('h2', null, 'Perto de você'));
+    const f = munPorIndice.get(observador.mun);
+    capa.appendChild(el('div', 'escopo', f
+      ? 'Você está em ' + f.properties.nome + ' (' + f.properties.uf + ')'
+      : 'A partir da sua localização'));
+    corpo.appendChild(capa);
+
+    const s1 = secao('Do que você precisa?');
+    const grade = el('div', 'precisa');
+    for(const c of CATEGORIAS){
+      const b = el('button');
+      b.type = 'button';
+      b.setAttribute('aria-pressed', String(pertoCat === c.id));
+      const l = el('span', 'letra', c.letra);
+      l.style.background = c.cor;
+      l.setAttribute('aria-hidden', 'true');
+      b.appendChild(l);
+      b.appendChild(el('span', null, c.rot));
+      // Tocar de novo na escolhida desfaz a escolha. O mapa reenquadra: a
+      // urgência mais perto pode estar fora do quadro que servia para todos.
+      b.onclick = () => {
+        pertoCat = pertoCat === c.id ? null : c.id;
+        verPerto();
+        enquadraPerto();
+      };
+      grade.appendChild(b);
+    }
+    s1.appendChild(grade);
+    corpo.appendChild(s1);
+
+    const cat = pertoCat && CATEGORIAS.find(x => x.id === pertoCat);
+    const s2 = secao(cat ? cat.rot + ' perto de você' : 'Mais perto de você');
+    s2.classList.add('rolavel');
+    const ul = el('ul', 'lista perto');
+    pertoIds.forEach(i => ul.appendChild(itemPerto(i)));
+    s2.appendChild(ul);
+    // Depois da lista, e não antes: antes ela empurrava os locais três linhas
+    // para baixo, e é o local que a pessoa veio ver. A ressalva continua na
+    // tela, junto das distâncias que ela qualifica.
+    s2.appendChild(el('p', 'chamada',
+      'Distância em linha reta até a coordenada declarada no CNES. 38,5% dos '
+      + 'endereços não têm número, e nesses casos o ponto pode estar a '
+      + 'centenas de metros do local real.'));
+    corpo.appendChild(s2);
+  }
+
+  // As gotas valem só nesta tela. Fora dela o mapa volta a ser o de sempre,
+  // com os discos azul e vinho. Dentro, os discos SAEM: apagados pela metade
+  // eles viravam manchas, e o disco de um vizinho colado numa gota parecia o
+  // próprio pino fora do lugar. A tela responde "o que tem perto", e o que
+  // tem perto é o que está na lista.
+  //
+  // Chamada a cada vista nova (pelo limpaCorpo) e a cada troca de carta; só
+  // mexe no mapa quando o que deve aparecer mudou.
+  const CAMADAS_DISCO = ['estab-sombra', 'estab', 'estab-cruz'];
+  let gotas = [];
+  // As gotas valem enquanto "Perto de você" estiver no caminho — na própria
+  // tela e na ficha aberta a partir dela. Trocar os pinos ao abrir a ficha
+  // desmanchava o mapa que a pessoa estava lendo; a volta da ficha cai de
+  // novo na lista, então o mapa também fica. Sair para o município, ou abrir
+  // um pino de fora da lista, tira "Perto de você" da pilha, e aí elas saem.
+  const pertoNaPilha = () => !!observador && pilha.some(x => x.tipo === 'perto');
+  // a gota da ficha aberta, ou -1
+  const gotaAberta = () =>
+    cartaoIdx >= 0 ? cartaoIdx :
+    vista === 'estab' && pertoNaPilha() && pertoIds.includes(reportIdx) ? reportIdx : -1;
+  function sincronizaPerto(){
+    if(!pertoPronto || !map.getSource('perto')) return;
+    if(vista !== 'perto') fechaCartao();
+    const ativo = pertoNaPilha();
+    realcaGota(ativo ? gotaAberta() : -1);
+    const chave = ativo ? (pertoCat || '') + ':' + pertoIds.join(',') : '';
+    if(chave === pertoNoMapa) return;
+    pertoNoMapa = chave;
+    gotas = ativo
+      ? pertoIds.map((i, k) => ({type:'Feature', id:i,
+          properties:{i, ordem:k, c:(pertoCatDe.get(i) || categoriaDoTipo(i)).id},
+          geometry:{type:'Point', coordinates:[lon[i], lat[i]]}}))
+      : [];
+    espalhaGotas();
+    for(const id of CAMADAS_DISCO)
+      if(map.getLayer(id))
+        map.setLayoutProperty(id, 'visibility', ativo ? 'none' : 'visible');
+  }
+
+  // A gota da ficha aberta cresce e passa para cima das vizinhas. Faz o papel
+  // do alfinete das outras telas, sem trocar de desenho.
+  function realcaGota(sel){
+    if(sel === gotaRealcada || !map.getLayer('perto-gota')) return;
+    gotaRealcada = sel;
+    map.setLayoutProperty('perto-gota', 'icon-size',
+      ['case', ['==', ['get','i'], sel], 1.3, 1]);
+    map.setLayoutProperty('perto-gota', 'symbol-sort-key',
+      ['case', ['==', ['get','i'], sel], 1, ['-', 0, ['get','ordem']]]);
+  }
+
+  // Duas gotas no mesmo lugar viravam uma: o Dante Pazzanese e a farmácia
+  // dele têm a MESMA coordenada, e a UPA Vila Mariana ficava atrás da UBS ao
+  // lado. As que se cobrem NA TELA, no zoom vigente, se afastam para os lados
+  // o bastante para as duas aparecerem. Só na horizontal: a ponta continua na
+  // altura do lugar. Quem se desloca é a coordenada da gota, e não o lugar:
+  // a lista e a distância seguem o cadastro. Refeito a cada fim de zoom,
+  // porque o que se cobre muda com ele.
+  // Só grupos pequenos se espalham. Com o mapa afastado as 21 caem num grupo
+  // só, e espalhadas viravam uma fila atravessando o país. Ali o empilhado,
+  // com a mais perto por cima, mente menos que a fila.
+  const LARG_GOTA = 32, ALT_GOTA = 40, MAX_ESPALHA = 4;
+  function espalhaGotas(){
+    if(!gotas.length){
+      map.getSource('perto').setData({type:'FeatureCollection', features:[]});
+      return;
+    }
+    // mede sempre sobre o lugar de verdade, não sobre o deslocado da vez anterior
+    const pt = gotas.map(f => map.project([lon[f.properties.i], lat[f.properties.i]]));
+    const grupos = [];
+    pt.forEach((p, k) => {
+      const g0 = grupos.find(gr => gr.some(j =>
+        Math.abs(pt[j].x - p.x) < LARG_GOTA && Math.abs(pt[j].y - p.y) < ALT_GOTA));
+      g0 ? g0.push(k) : grupos.push([k]);
+    });
+    for(const gr of grupos){
+      if(gr.length > MAX_ESPALHA){
+        gr.forEach(j => { const i = gotas[j].properties.i;
+                          gotas[j].geometry.coordinates = [lon[i], lat[i]]; });
+        continue;
+      }
+      gr.sort((a, b) => pt[a].x - pt[b].x);
+      const meio = gr.reduce((s0, j) => s0 + pt[j].x, 0) / gr.length;
+      gr.forEach((j, n) => {
+        const alvo = meio + (n - (gr.length - 1) / 2) * (LARG_GOTA + 2);
+        const i = gotas[j].properties.i;
+        gotas[j].geometry.coordinates = gr.length > 1
+          ? map.unproject([alvo, pt[j].y]).toArray() : [lon[i], lat[i]];
+      });
+    }
+    map.getSource('perto').setData({type:'FeatureCollection', features:gotas});
+    if(cartao){
+      const gf = gotas.find(f => f.properties.i === cartaoIdx);
+      if(gf) cartao.setLngLat(gf.geometry.coordinates);
+    }
+  }
+  map.on('zoomend', () => { if(gotas.length) espalhaGotas(); });
+
+
+  // A pessoa e os cinco mais próximos: o bastante para ver para que lado ir,
+  // sem afastar a ponto de perder a rua.
+  function enquadraPerto(){
+    const b = new maplibregl.LngLatBounds();
+    b.extend([observador.lon, observador.lat]);
+    pertoIds.slice(0, 5).forEach(i => b.extend([lon[i], lat[i]]));
+    enquadra(b, {maxZoom:16});
+  }
+
+  function vaiParaPerto(){
+    empilha({tipo:'perto'});
+    verPerto();
+    enquadraPerto();
+    // no celular a folha sobe até a parada do meio: a tela é a lista
+    if(innerWidth <= 820) vaiPara(1);
+  }
+
   // ---- ficha do estabelecimento -------------------------------------------
   // Disco para todos, alfinete só para o aberto: é o que mantém a densidade
   // legível e ainda assim diz, sem ambiguidade, qual dos pontos está na ficha.
@@ -2470,6 +2948,8 @@
   function marcaSelecionado(i){
     if(alfineteSel){ alfineteSel.remove(); alfineteSel = null; }
     if(i == null) return;
+    // vinda de "Perto de você", quem marca o lugar é a própria gota, realçada
+    if(pertoNaPilha() && pertoIds.includes(i)) return;
     const C = CORES();
     const cor = estab.esfera[i] === 0 ? C.pub : C.conv;
     const e = document.createElementNS('http://www.w3.org/2000/svg','svg');
@@ -2994,6 +3474,8 @@
   // arrastou à mão — em vez de recalcular um enquadramento novo, que a faria
   // perder o lugar que estava olhando.
   const pilha = [{tipo:'inicio'}];
+  // A partir daqui tudo o que a sincronia das gotas lê já existe.
+  pertoPronto = true;
   let raizBusca = null;           // a página de resultados, enquanto houver busca
   // A região é um atalho LATERAL: entra-se nela a partir de uma cidade e
   // pula-se dela para outra. Quem pula espera desfazer o pulo — cidade nova,
@@ -3031,6 +3513,7 @@
     if(e.tipo === 'bairro') return e.x.m;
     if(e.tipo === 'lugar')  return e.m;
     if(e.tipo === 'estab')  return munDe[e.i];
+    if(e.tipo === 'perto')  return observador ? observador.mun : -1;
     return -1;
   }
   // o contexto só vale enquanto se anda DENTRO da mesma região
@@ -3060,8 +3543,20 @@
       c.push(e);
       return c;
     }
+    // A ficha aberta a partir de "Perto de você" volta para lá: a lista é o
+    // lugar de onde a pessoa saiu, e o município do estabelecimento pode nem
+    // ser o dela — o mais perto às vezes fica do outro lado da divisa.
+    if(e.tipo === 'estab'){
+      const pt = pilha.find(x => x.tipo === 'perto');
+      if(pt && pertoIds.includes(e.i)){
+        const c2 = cadeia(pt);
+        c2.push(e);
+        return c2;
+      }
+    }
     let f = null;
     if(e.tipo === 'mun')        f = e.f;
+    else if(e.tipo === 'perto')  f = observador ? munPorIndice.get(observador.mun) : null;
     else if(e.tipo === 'bairro') f = munPorIndice.get(e.x.m);
     else if(e.tipo === 'lugar')  f = munPorIndice.get(e.m);
     else if(e.tipo === 'estab')  f = munDoEstab(e.i);
@@ -3096,6 +3591,7 @@
     if(e.tipo === 'lugar')  return 'lug:' + e.nome + ':' + e.lng;
     if(e.tipo === 'estab')  return 'est:' + e.i;
     if(e.tipo === 'resultados') return 'res:' + e.termo;
+    if(e.tipo === 'perto')  return 'perto';
     return 'inicio';
   }
 
@@ -3144,6 +3640,7 @@
       map.flyTo({center:[e.lng, e.lat], zoom:14, duration:700, padding:FOLGA()});
     else if(e.tipo === 'estab')
       map.flyTo({center:[lon[e.i], lat[e.i]], zoom:16, duration:700, padding:FOLGA()});
+    else if(e.tipo === 'perto')  enquadraPerto();
     else if(e.tipo === 'inicio') enquadraBrasil(700);
   }
 
@@ -3158,6 +3655,7 @@
     else if(e.tipo === 'bairro')  verBairro(e.x);
     else if(e.tipo === 'lugar')   verLugarCarta(e.nome, e.classe, e.lng, e.lat);
     else if(e.tipo === 'estab')   verEstab(e.i);
+    else if(e.tipo === 'perto')   verPerto();
     map.getSource('sel').setData({type:'FeatureCollection',
       features: e.tipo === 'uf' && UF[e.sigla] ? [UF[e.sigla].feicao] : []});
     // A MESMA folga que o `camera()` usou para medir: ele guardou o ponto do
@@ -3308,6 +3806,13 @@
     // marcar o local certo no mapa consome o clique antes de tudo
     if(marcando){ confirmaMarcacao(e.lngLat.lat, e.lngLat.lng); return; }
     const caixa = [[e.point.x-6,e.point.y-6],[e.point.x+6,e.point.y+6]];
+    const gota = map.getLayer('perto-gota')
+              ? map.queryRenderedFeatures(caixa, {layers:['perto-gota']}) : [];
+    if(gota.length){
+      const i = gota[0].properties.i;
+      vista === 'perto' ? abreCartao(i, false) : vaiParaEstab(i);
+      return;
+    }
     const pin = map.getLayer('estab')
               ? map.queryRenderedFeatures(caixa, {layers:['estab']}) : [];
     if(pin.length){
