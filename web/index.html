@@ -336,6 +336,21 @@
     font-size:13.5px;cursor:pointer}
   .soAberto input{width:20px;height:20px;accent-color:var(--pub);margin:0;flex:none}
   .cartao .selo.fechado{background:var(--muted)}
+  /* As duas ações da ficha, logo abaixo do nome: o que a pessoa mais faz com
+     um endereço de saúde é ir até lá ou mandá-lo para alguém. */
+  .acoesFicha{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:0 18px 16px}
+  .acoesFicha a,.acoesFicha button{
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+    min-height:58px;border-radius:12px;border:0;font:inherit;font-size:13.5px;
+    font-weight:600;text-decoration:none;cursor:pointer;
+  }
+  .acoesFicha a{background:var(--pub);color:#fff}
+  .acoesFicha a:hover{background:#0d3f78}
+  .acoesFicha button{background:var(--toque);color:var(--ink)}
+  .acoesFicha button:hover{background:var(--line)}
+  .acoesFicha button:disabled{opacity:.55;cursor:default}
+  .acoesFicha svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;
+    stroke-linecap:round;stroke-linejoin:round}
   .semana{display:block;line-height:1.55}
   .semana > span{display:block}
   .semana .agora{font-weight:600;color:var(--ok)}
@@ -946,7 +961,7 @@
   // parte, o mesmo que o site usa. O mapa não espera por ela: quem abrir um
   // pino antes da hora vê "carregando" e a ficha se completa ao chegar.
   let ficha = null, aoChegarFicha = null;
-  fetch('fichas.json').then(r => r.json()).then(F => {
+  const fichaPronta = fetch('fichas.json').then(r => r.json()).then(F => {
     ficha = {nome:F.nome.split('|'), end:F.end.split('|'), cep:F.cep.split('|'),
              tel:F.tel.split('|'), cnes:F.cnes.split('|')};
     setTimeout(indexaEstab, 0);
@@ -3153,6 +3168,58 @@
     return li;
   }
 
+  // Como chegar e Compartilhar. Os ícones são fixos, escritos aqui: nada do
+  // cadastro passa por innerHTML.
+  const ICONE_ROTA = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l18-8-8 18-2-8z"/></svg>';
+  const ICONE_COMPARTILHA = '<svg viewBox="0 0 24 24" aria-hidden="true">' +
+    '<circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/>' +
+    '<path d="M8.2 11l7.6-4M8.2 13l7.6 4"/></svg>';
+  // O link direto de um estabelecimento: abre o site já na ficha dele.
+  const linkDe = i => location.origin + location.pathname + '?cnes=' + ficha.cnes[i];
+  function acoesFicha(i){
+    const cx = el('div', 'acoesFicha');
+    // Só o DESTINO vai no link, como no cartão: a posição de quem olha não
+    // sai do aparelho, e o próprio Maps pega a origem.
+    const ir = el('a');
+    ir.innerHTML = ICONE_ROTA;
+    ir.appendChild(document.createTextNode('Como chegar'));
+    ir.href = 'https://www.google.com/maps/dir/?api=1&destination=' +
+              lat[i].toFixed(5) + ',' + lon[i].toFixed(5);
+    ir.target = '_blank'; ir.rel = 'noopener noreferrer';
+    const comp = el('button');
+    comp.type = 'button';
+    comp.innerHTML = ICONE_COMPARTILHA;
+    const rot = document.createTextNode('Compartilhar');
+    comp.appendChild(rot);
+    // sem a ficha não há CNES para o link; a ficha repinta quando ela chega
+    comp.disabled = !ficha;
+    comp.onclick = async () => {
+      const m = munDe[i];
+      const nome = cap(ficha.nome[i]) || 'Estabelecimento de saúde';
+      const onde = [cap(ficha.end[i]), cap(catalogo.bairros[bairroDe[i]] || ''),
+                    cap(catalogo.muns[m]) + '/' + catalogo.ufs[catalogo.munUF[m]]]
+                   .filter(Boolean).join(', ');
+      const url = linkDe(i);
+      // No celular, o menu de compartilhar do próprio aparelho. Onde ele não
+      // existe (quase todo computador), o texto vai para a área de
+      // transferência e o botão avisa.
+      if(navigator.share){
+        try{ await navigator.share({title:nome, text:nome + '\n' + onde, url}); }catch(_){}
+        return;
+      }
+      try{
+        await navigator.clipboard.writeText(nome + '\n' + onde + '\n' + url);
+        rot.textContent = 'Link copiado';
+      }catch(_){
+        rot.textContent = 'Não foi possível copiar';
+      }
+      setTimeout(() => { rot.textContent = 'Compartilhar'; }, 2500);
+    };
+    cx.appendChild(ir);
+    cx.appendChild(comp);
+    return cx;
+  }
+
   function verEstab(i){
     vista = 'estab';
     corpo.className = 'corpo';
@@ -3172,6 +3239,7 @@
     capa.appendChild(el('div','escopo', capCat(catalogo.tipos[tipoDe[i]]) + ', ' +
       (estab.esfera[i] === 0 ? 'administração pública' : 'privada conveniada')));
     corpo.appendChild(capa);
+    corpo.appendChild(acoesFicha(i));
 
     const s1 = secao(null);
     const ul = el('ul','ficha');
@@ -4372,6 +4440,18 @@
   // ordenar por distância já acontece no 'geolocate' do controleLocal. Recusar
   // — aqui ou na janela do navegador — deixa um balão apontando a bolinha,
   // para a pessoa saber onde ligar depois.
+  // Quem chega por um link compartilhado (?cnes=1234567) quer ver AQUELE
+  // estabelecimento: o site abre na ficha dele, sem o convite de localização,
+  // que levaria para outra tela. O parâmetro sai do endereço depois de usado,
+  // para recarregar a página não reabrir a ficha.
+  const cnesPedido = new URLSearchParams(location.search).get('cnes');
+  if(cnesPedido && /^\d{7}$/.test(cnesPedido)){
+    fichaPronta.then(() => {
+      const i = ficha ? ficha.cnes.indexOf(cnesPedido) : -1;
+      if(i >= 0) vaiParaEstab(i);
+      history.replaceState(null, '', location.pathname);
+    });
+  }
   const convite = g('convite');
   const dica = g('dicaLocal');
   const bolinha = () => document.querySelector('.maplibregl-ctrl-geolocate');
@@ -4436,6 +4516,7 @@
   // permitida, liga direto (sem janela do navegador); negada, vai direto ao
   // balão. Sem a API (Safari antigo), pergunta.
   async function convidaLocal(){
+    if(cnesPedido) return;
     let estado = 'prompt';
     try{
       if(navigator.permissions)
