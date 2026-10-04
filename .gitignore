@@ -24,6 +24,9 @@ v1/
 dados_tratados.json
 
 # --- ambiente -----------------------------------------------------------------
+# Segredos do `wrangler pages dev` nesta máquina (o SEGREDO_IP do report). Em
+# produção o segredo mora na configuração da Cloudflare, não em arquivo.
+.dev.vars
 # Estado local do wrangler: o banco D1 e o bucket R2 de teste desta máquina.
 .wrangler/
 node_modules/

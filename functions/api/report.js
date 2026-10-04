@@ -34,11 +34,24 @@ function json(dados, status = 200) {
   });
 }
 
-async function hashIp(ip) {
-  // hash, não o IP em texto puro — suficiente para limitar taxa de envio sem
-  // guardar dado pessoal identificável diretamente no banco
-  const dados = new TextEncoder().encode("mapa-sus-report::" + ip);
-  const buf = await crypto.subtle.digest("SHA-256", dados);
+// O IP não é guardado: guarda-se um HMAC dele, que serve só para contar
+// envios do mesmo endereço nos limites de taxa abaixo.
+//
+// Um SHA-256 simples não bastava. São 4,3 bilhões de IPv4 e o prefixo estava
+// no código público: calcular o hash de todos leva minutos, e cada report
+// voltaria a apontar para um IP. Com HMAC, a conta exige o SEGREDO_IP, que
+// existe só na configuração da Cloudflare — nem no repositório, nem no log.
+//
+// A data do dia entra na mensagem: o mesmo IP gera um valor diferente a cada
+// dia, então nem quem tiver o banco consegue seguir uma pessoa ao longo do
+// tempo. Os limites olham no máximo 24 h para trás e continuam valendo; a
+// virada do dia (UTC) apenas recomeça a contagem.
+async function hashIp(ip, segredo) {
+  const enc = new TextEncoder();
+  const chave = await crypto.subtle.importKey(
+    "raw", enc.encode(segredo), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const dia = new Date().toISOString().slice(0, 10);
+  const buf = await crypto.subtle.sign("HMAC", chave, enc.encode(dia + "::" + ip));
   return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
 }
 
@@ -53,11 +66,22 @@ function numOuNull(v) {
   return Number.isFinite(n) ? n : null;
 }
 
-function extensaoDe(nomeOuTipo) {
-  const m = /\.(\w+)$/.exec(nomeOuTipo || "");
-  if (m) return m[1].toLowerCase();
-  const porTipo = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif" };
-  return porTipo[nomeOuTipo] || "bin";
+// O tipo do anexo sai do CONTEÚDO, nunca do nome do arquivo nem do tipo que
+// o navegador declara — os dois vêm do cliente e podem ser qualquer coisa: um
+// SVG (que carrega script) passava por "image/", e um "foto.html" declarado
+// como PNG era gravado com extensão .html. Só três formatos, reconhecidos
+// pela assinatura dos primeiros bytes; a extensão e o tipo gravados no R2
+// saem daqui.
+function formatoPelaAssinatura(b) {
+  if (b.length >= 3 && b[0] === 0xFF && b[1] === 0xD8 && b[2] === 0xFF)
+    return { ext: "jpg", mime: "image/jpeg" };
+  const PNG = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+  if (b.length >= 8 && PNG.every((x, k) => b[k] === x))
+    return { ext: "png", mime: "image/png" };
+  const asc = (ini, fim) => String.fromCharCode(...b.slice(ini, fim));
+  if (b.length >= 12 && asc(0, 4) === "RIFF" && asc(8, 12) === "WEBP")
+    return { ext: "webp", mime: "image/webp" };
+  return null;
 }
 
 export async function onRequestPost(context) {
@@ -94,8 +118,14 @@ export async function onRequestPost(context) {
     return json({ erro: "tipo inválido" }, 400);
   }
 
+  // Sem o segredo a rota RECUSA, em vez de voltar calada a um hash que
+  // qualquer um reverte. O motivo vai para o log, nunca o valor do segredo.
+  if (!env.SEGREDO_IP) {
+    console.error("SEGREDO_IP não configurado: report recusado");
+    return json({ erro: "servidor sem configuração para receber reports" }, 500);
+  }
   const ip = request.headers.get("CF-Connecting-IP") || "desconhecido";
-  const ipHash = await hashIp(ip);
+  const ipHash = await hashIp(ip, env.SEGREDO_IP);
 
   // limite básico de taxa: sem isso, um script poderia inundar o banco/bucket
   // a janela é calculada pelo próprio SQLite: criado_em é gravado por
@@ -118,13 +148,16 @@ export async function onRequestPost(context) {
   let evidenciaKey = null;
   let anexo = "nenhum";
   const arquivo = form.get("evidencia");
-  if (arquivo && typeof arquivo === "object" && arquivo.size > 0) {
-    if (!arquivo.type || !arquivo.type.startsWith("image/")) {
-      return json({ erro: "evidência precisa ser uma imagem" }, 400);
-    }
-    if (arquivo.size > LIMITE_EVIDENCIA) {
-      return json({ erro: "evidência maior que 1 MB" }, 400);
-    }
+  // Anexo recusado por tipo ou tamanho também NÃO derruba o report, pelo
+  // mesmo motivo do limite diário: o texto é o que interessa.
+  const formato = (arquivo && typeof arquivo === "object" && arquivo.size > 0)
+    ? formatoPelaAssinatura(new Uint8Array(await arquivo.slice(0, 12).arrayBuffer()))
+    : undefined;
+  if (formato === null) {
+    anexo = "recusado_tipo";
+  } else if (formato && arquivo.size > LIMITE_EVIDENCIA) {
+    anexo = "recusado_tamanho";
+  } else if (formato) {
     const { results: contas } = await env.DB.prepare(
       `SELECT
          COUNT(*) AS global,
@@ -138,10 +171,9 @@ export async function onRequestPost(context) {
         (noDia.global ?? 0) >= MAX_ANEXOS_GLOBAL_DIA) {
       anexo = "recusado_limite";
     } else {
-      const ext = extensaoDe(arquivo.name || arquivo.type);
-      evidenciaKey = `reports/${cnes}/${Date.now()}-${crypto.randomUUID()}.${ext}`;
+      evidenciaKey = `reports/${cnes}/${Date.now()}-${crypto.randomUUID()}.${formato.ext}`;
       await env.EVIDENCIAS.put(evidenciaKey, arquivo.stream(), {
-        httpMetadata: { contentType: arquivo.type },
+        httpMetadata: { contentType: formato.mime },
       });
       anexo = "gravado";
     }

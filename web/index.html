@@ -2970,6 +2970,33 @@
   }
 
   const TAM_MAX_EVIDENCIA = 1024 * 1024;   // 1 MB, o mesmo limite do servidor
+
+  // A foto de celular carrega, escondida no arquivo (EXIF), a latitude e a
+  // longitude de onde foi tirada — quem reporta um posto perto de casa
+  // entregaria o endereço de casa. Redesenhada num canvas, ela sai sem
+  // metadado nenhum, e já reduzida: o lado maior vai a 1.600 px, o que põe
+  // quase toda foto de celular abaixo de 1 MB. A rotação da foto é aplicada
+  // antes, para ela não chegar deitada.
+  const LADO_MAX_EVIDENCIA = 1600;
+  async function limpaImagem(a){
+    let bmp;
+    try{ bmp = await createImageBitmap(a, {imageOrientation:'from-image'}); }
+    catch(_){ bmp = await createImageBitmap(a); }
+    const k = Math.min(1, LADO_MAX_EVIDENCIA / Math.max(bmp.width, bmp.height));
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(bmp.width * k));
+    c.height = Math.max(1, Math.round(bmp.height * k));
+    const x = c.getContext('2d');
+    // print com fundo transparente viraria preto no JPEG
+    x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height);
+    x.drawImage(bmp, 0, 0, c.width, c.height);
+    if(bmp.close) bmp.close();
+    for(const q of [0.85, 0.7, 0.55]){
+      const b = await new Promise(r => c.toBlob(r, 'image/jpeg', q));
+      if(b && b.size <= TAM_MAX_EVIDENCIA) return b;
+    }
+    return null;
+  }
   let marcando = false, marcadaLat = null, marcadaLon = null, alfinete = null;
   let reportIdx = -1;
 
@@ -3117,9 +3144,13 @@
     txt.placeholder = 'Algum outro detalhe que ajude a conferir…';
     f.appendChild(txt);
 
-    f.appendChild(rot('Anexar foto ou print como evidência (opcional, até 1 MB)','rArq'));
+    f.appendChild(rot('Anexar foto ou print como evidência (opcional)','rArq'));
     const arq = el('input'); arq.type = 'file'; arq.id = 'rArq'; arq.accept = 'image/*';
     f.appendChild(arq);
+    f.appendChild(el('p','chamada','A imagem é reduzida e os dados escondidos nela — '
+      + 'como o local onde a foto foi tirada — são removidos antes do envio.'));
+    // a imagem já limpa, e a promessa de quem a está preparando
+    let evidencia = null, preparo = null;
     const arqErro = el('div','aviso erro');
     arqErro.hidden = true;
     f.appendChild(arqErro);
@@ -3175,18 +3206,27 @@
       marcado.hidden = false;
     };
 
+    // Prepara assim que a imagem é escolhida, e não no envio: quem demora
+    // escrevendo o detalhe já encontra a foto pronta. O tamanho do ARQUIVO
+    // original deixou de importar — o que vai é a versão reduzida.
+    const falhaArq = texto => {
+      arqErro.textContent = texto; arqErro.hidden = false; arq.value = '';
+    };
     arq.onchange = () => {
       const a = arq.files[0];
-      arqErro.hidden = true;
+      arqErro.hidden = true; evidencia = null; preparo = null;
       if(!a) return;
       if(!a.type.startsWith('image/')){
-        arqErro.textContent = 'Só é possível anexar imagem (foto ou print).';
-        arqErro.hidden = false; arq.value = ''; return;
+        falhaArq('Só é possível anexar imagem (foto ou print).'); return;
       }
-      if(a.size > TAM_MAX_EVIDENCIA){
-        arqErro.textContent = 'Arquivo maior que 1 MB — escolha uma imagem menor.';
-        arqErro.hidden = false; arq.value = '';
-      }
+      const este = preparo = limpaImagem(a).then(b => {
+        if(preparo !== este) return;          // trocou de arquivo no meio
+        if(!b) falhaArq('Não foi possível reduzir essa imagem para até 1 MB. Tente outra.');
+        else evidencia = b;
+      }).catch(() => {
+        if(preparo === este)
+          falhaArq('Não foi possível ler essa imagem. Tente uma foto em JPG ou PNG.');
+      });
     };
 
     bCancela.onclick = () => {
@@ -3217,7 +3257,9 @@
             d.set('lon_sugerida', String(marcadaLon));
           }
         }
-        if(arq.files[0]) d.set('evidencia', arq.files[0], arq.files[0].name);
+        // Vai a versão limpa, nunca o arquivo escolhido: é ela que não tem GPS.
+        if(preparo) await preparo;
+        if(evidencia) d.set('evidencia', evidencia, 'evidencia.jpg');
 
         const resp = await fetch('/api/report', {method:'POST', body:d});
         if(!resp.ok) throw new Error('HTTP ' + resp.status);
@@ -3225,6 +3267,8 @@
         const r = await resp.json().catch(() => ({}));
         msg.textContent = (r.anexo === 'recusado_limite')
           ? 'Obrigado! Seu report foi enviado, mas a foto não pôde ser anexada agora — o limite diário de anexos foi atingido.'
+          : (r.anexo === 'recusado_tipo' || r.anexo === 'recusado_tamanho')
+          ? 'Obrigado! Seu report foi enviado, mas a imagem não pôde ser anexada.'
           : 'Obrigado! Seu report foi enviado.';
         msg.className = 'aviso ok'; msg.hidden = false;
         bEnvia.textContent = 'Enviado';
