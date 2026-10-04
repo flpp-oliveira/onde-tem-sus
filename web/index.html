@@ -3100,8 +3100,13 @@
     return f;
   }
   // No celular a tela vive com a folha na parada do meio, e é ACIMA dela que
-  // a pessoa e os locais mais perto têm de aparecer. No topo cabe ainda a
-  // altura da gota: o ponto é a ponta dela, e o desenho sobe a partir dali.
+  // a pessoa e os locais mais perto têm de aparecer. Nos dois formatos, no
+  // topo cabe ainda a altura da gota: o ponto é a ponta dela, e o desenho
+  // sobe a partir dali. Sem isso, o local mais ao norte (muitas vezes o mais
+  // perto de todos) aparecia só com a ponta, cortado pela borda de cima. No
+  // computador, embaixo entra um respiro a mais: a margem de sempre deixava
+  // a gota de baixo encostada na borda, junto dos controles do mapa.
+  const RESPIRO_BAIXO_PERTO = 24;
   function enquadraPerto(){
     const b = new maplibregl.LngLatBounds();
     b.extend([observador.lon, observador.lat]);
@@ -3109,8 +3114,11 @@
     const extra = {maxZoom:16};
     if(innerWidth <= 820){
       extra.padding = folgaAcimaDaFolha(paradas()[1]);
-      extra.padding.top += ALT_GOTA;
+    }else{
+      extra.padding = FOLGA();
+      extra.padding.bottom += RESPIRO_BAIXO_PERTO;
     }
+    extra.padding.top += ALT_GOTA;
     enquadra(b, extra);
   }
 
@@ -3994,10 +4002,12 @@
     // A MESMA folga que o `camera()` usou para medir: ele guardou o ponto do
     // meio da faixa livre, e pedir a folga aqui recoloca esse ponto no meio
     // da faixa livre. As duas pontas falam da mesma referência.
-    // Exceto "Perto de você" no celular: a câmera guardada ali foi medida com
-    // a folha em outra altura (recolhida pelo cartão, ou no alto pela ficha),
-    // e devolvê-la deixava a pessoa atrás da folha. Lá a tela se reenquadra.
-    const reenquadraPerto = e.tipo === 'perto' && innerWidth <= 820;
+    // Exceto "Perto de você": a câmera guardada ali é a do cartão, centrada no
+    // local que a pessoa abriu, e devolvê-la mostrava a região do local, e não
+    // a dela — no computador ela ia parar no canto, sem os mais perto à volta;
+    // no celular, ainda atrás da folha, medida em outra altura. A tela se
+    // reenquadra: a pessoa e os mais perto, como ao entrar.
+    const reenquadraPerto = e.tipo === 'perto';
     if(e.cam && !reenquadraPerto) map.flyTo({center:e.cam.centro, zoom:e.cam.zoom,
                          duration:700, padding:FOLGA()});
     else reenquadra(e);
@@ -4006,6 +4016,16 @@
 
   function voltar(){
     fechaSugestoes();
+    // O cartão de "Perto de você" não é um nível da pilha, mas para quem olha é
+    // um passo à frente da lista: o Voltar com ele aberto fecha o cartão e
+    // devolve a tela como ela era — a pessoa e os mais perto, e no celular a
+    // folha no meio, que o cartão tinha recolhido. O Voltar seguinte sai.
+    if(cartao && vista === 'perto'){
+      fechaCartao();
+      if(innerWidth <= 820) vaiPara(1);
+      enquadraPerto();
+      return;
+    }
     if(pilha.length < 2) return;
     pilha.pop();
     reentra(pilha[pilha.length-1]);
