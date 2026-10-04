@@ -2858,13 +2858,17 @@
     // aberta cobre metade do mapa. Ela recolhe e o mapa traz o local para a
     // faixa livre, com o cartão inteiro acima dele. Tocando na gota, o mapa
     // só anda se o cartão fosse nascer escondido atrás da busca ou do painel.
-    if(innerWidth <= 820 && daLista) vaiPara(0);
+    // No celular, a gota tocada com a folha aberta faz o mesmo que a lista: a
+    // folha no meio, a busca e o cartão não cabem juntos numa tela de 667 px,
+    // e o cartão nascia atrás da folha.
+    const recolheu = innerWidth <= 820 && (daLista || parada > 0);
+    if(recolheu) vaiPara(0);
     const rc = cartao.getElement().getBoundingClientRect();
     const rm = map.getContainer().getBoundingClientRect();
     const f = FOLGA();
     const escondido = rc.top - rm.top < f.top || rc.left - rm.left < f.left ||
                       rc.right - rm.left > rm.width - f.right;
-    if(daLista || escondido){
+    if(daLista || recolheu || escondido){
       // A folga é medida com a folha ainda descendo: no celular, a de baixo
       // vem da folha JÁ recolhida, que é onde ela vai parar.
       if(innerWidth <= 820) f.bottom = (g('alca').offsetHeight || 56) + 14;
@@ -3040,11 +3044,32 @@
 
   // A pessoa e os cinco mais próximos: o bastante para ver para que lado ir,
   // sem afastar a ponto de perder a rua.
+  // No celular, a faixa do mapa entre a busca e a folha numa parada. A folga
+  // de baixo vem da PARADA, e não da folha medida: quando o mapa começa a se
+  // mover, a folha ainda está subindo. E o topo não encolhe, ao contrário do
+  // FOLGA(), que reduz cima e baixo juntos quando não cabem: com a folha no
+  // meio, era o topo que perdia, e o que estava no alto nascia atrás da busca.
+  // A folha aberta de todo deixa ao menos 60 px de mapa.
+  function folgaAcimaDaFolha(fr){
+    const f = FOLGA();
+    const bu = document.querySelector('.busca');
+    f.top = (bu ? bu.getBoundingClientRect().bottom : 0) + 14;
+    f.bottom = Math.min(innerHeight * fr + 14, innerHeight - f.top - 60);
+    return f;
+  }
+  // No celular a tela vive com a folha na parada do meio, e é ACIMA dela que
+  // a pessoa e os locais mais perto têm de aparecer. No topo cabe ainda a
+  // altura da gota: o ponto é a ponta dela, e o desenho sobe a partir dali.
   function enquadraPerto(){
     const b = new maplibregl.LngLatBounds();
     b.extend([observador.lon, observador.lat]);
     pertoIds.slice(0, 5).forEach(i => b.extend([lon[i], lat[i]]));
-    enquadra(b, {maxZoom:16});
+    const extra = {maxZoom:16};
+    if(innerWidth <= 820){
+      extra.padding = folgaAcimaDaFolha(paradas()[1]);
+      extra.padding.top += ALT_GOTA;
+    }
+    enquadra(b, extra);
   }
 
   function vaiParaPerto(){
@@ -3920,13 +3945,18 @@
       // chegar em "Perto de você" pelo Voltar encerra a busca
       if(baseBusca){ campo.value = ''; g('bLimpar').hidden = true; baseBusca = false; }
       verPerto();
+      if(innerWidth <= 820) vaiPara(1);
     }
     map.getSource('sel').setData({type:'FeatureCollection',
       features: e.tipo === 'uf' && UF[e.sigla] ? [UF[e.sigla].feicao] : []});
     // A MESMA folga que o `camera()` usou para medir: ele guardou o ponto do
     // meio da faixa livre, e pedir a folga aqui recoloca esse ponto no meio
     // da faixa livre. As duas pontas falam da mesma referência.
-    if(e.cam) map.flyTo({center:e.cam.centro, zoom:e.cam.zoom,
+    // Exceto "Perto de você" no celular: a câmera guardada ali foi medida com
+    // a folha em outra altura (recolhida pelo cartão, ou no alto pela ficha),
+    // e devolvê-la deixava a pessoa atrás da folha. Lá a tela se reenquadra.
+    const reenquadraPerto = e.tipo === 'perto' && innerWidth <= 820;
+    if(e.cam && !reenquadraPerto) map.flyTo({center:e.cam.centro, zoom:e.cam.zoom,
                          duration:700, padding:FOLGA()});
     else reenquadra(e);
     ajustaVoltar();
@@ -4022,7 +4052,8 @@
   // ficar meio atrás do painel do que o mapa não sair do lugar.
   function enquadra(b, extra){
     map.setPadding({top:0, bottom:0, left:0, right:0});
-    const o = Object.assign({duration:900}, extra, {padding:FOLGA()});
+    const o = Object.assign({duration:900}, extra,
+                            {padding:(extra && extra.padding) || FOLGA()});
     if(map.cameraForBounds(b, o)) map.fitBounds(b, o);
     else map.fitBounds(b, Object.assign({duration:900}, extra, {padding:20}));
   }
@@ -4043,10 +4074,21 @@
   // sobra quadra em volta — 17 ruas nomeadas na tela, 3 ao redor do centro, a
   // 2,33 m por pixel. Do 16,5 para cima a carta começa a esconder rótulo por
   // colisão e o centro fica sem nome nenhum.
+  //
+  // No celular a ficha mora na folha: com ela recolhida, abrir a ficha só
+  // centralizava o pino, e a ficha ficava escondida embaixo. A folha sobe até
+  // a parada do meio (aberta de todo, fica como está), e o pino é centrado na
+  // faixa que sobra ACIMA dela. A folga de baixo vem da parada, e não da folha
+  // medida: quando o voo começa, a folha ainda está subindo.
   function vaiParaEstab(i){
     empilha({tipo:'estab', i});
     verEstab(i);
-    map.flyTo({center:[lon[i], lat[i]], zoom:16, duration:900, padding:FOLGA()});
+    let f = FOLGA();
+    if(innerWidth <= 820){
+      if(parada < 1) vaiPara(1);
+      f = folgaAcimaDaFolha(paradas()[parada]);
+    }
+    map.flyTo({center:[lon[i], lat[i]], zoom:16, duration:900, padding:f});
   }
   // O município não ganha contorno. A divisa do IBGE cruza a água em linha
   // reta — Belém fecha metade da Baía do Marajó — e mesmo na qualidade máxima
