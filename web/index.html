@@ -2031,7 +2031,7 @@
     for(const f of municipios.features){
       if(f.properties.uf !== recorte.uf) continue;
       const k = macroDe[f.properties.m];
-      if(k >= 0 && !vistas.has(k)) vistas.set(k, capMacro(regioes.macros[k]));
+      if(k >= 0 && !vistas.has(k)) vistas.set(k, regioes.macros[k]);
     }
     // numeric:true porque São Paulo numera as suas de 1 a 19: na ordem de
     // texto pura, RRAS10 e RRAS11 vinham antes de RRAS2.

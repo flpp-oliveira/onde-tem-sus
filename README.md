@@ -22,6 +22,7 @@ Artefato de trabalho de conclusão de curso.
 | `trata_cnes.py` | lê o CNES bruto, trata e entrega o dado |
 | `gera_site.py` | monta de `dados_tratados.json` os arquivos que o mapa busca |
 | `gera_regioes.py` | casa as regiões de saúde com os municípios |
+| `nomes.py` | a regra de nome próprio (maiúsculas e acentos) dos nomes de região |
 | `web/` | o site pronto: `index.html`, `sobre.html` e os seis arquivos de dado |
 | `auditoria_bairros_202606.csv` | as 443 grafias de bairro alteradas, uma por linha |
 | `functions/api/report.js` | a API que recebe as correções enviadas pela população |

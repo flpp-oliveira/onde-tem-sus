@@ -12,6 +12,8 @@ import json
 import os
 import sys
 
+from nomes import Regra
+
 sys.stdout.reconfigure(line_buffering=True, encoding="utf-8")
 
 RAIZ = os.path.dirname(os.path.abspath(__file__))
@@ -19,18 +21,6 @@ WEB = os.path.join(RAIZ, "web")
 SAIDA = os.path.join(WEB, "regioes.json")
 DADOS = os.path.join(RAIZ, "dados_tratados.json")
 FONTE = os.path.join(RAIZ, "insumos", "regiao_saude.json")
-
-MINUSCULAS = {"de", "da", "do", "das", "dos", "e", "a", "o", "em", "no", "na"}
-
-
-def titulo(s):
-    out = []
-    for i, w in enumerate(s.split()):
-        b = w.lower()
-        out.append(b if i and b in MINUSCULAS else b[:1].upper() + b[1:])
-    return " ".join(out)
-
-
 
 def main():
     print("lendo insumos/regiao_saude.json")
@@ -75,10 +65,14 @@ def main():
     codsM = sorted({x["codigo_macrorregiao_saude"] for x in ligado.values()})
     iR = {c: k for k, c in enumerate(codsR)}
     iM = {c: k for k, c in enumerate(codsM)}
+    # A tabela grava os nomes em caixa alta e quase sempre sem acento. A regra
+    # de nomes.py repõe maiúsculas e acentos, e o acento vem dos próprios
+    # nomes de município do IBGE ("SAO" vira "São" como em "São Paulo").
+    regra = Regra(muns)
     nomeR, nomeM = {}, {}
     for x in ligado.values():
-        nomeR[x["codigo_regiao_saude"]] = titulo(x["regiao_saude"])
-        nomeM[x["codigo_macrorregiao_saude"]] = titulo(x["macrorregiao_saude"])
+        nomeR[x["codigo_regiao_saude"]] = regra(x["regiao_saude"])
+        nomeM[x["codigo_macrorregiao_saude"]] = regra(x["macrorregiao_saude"])
 
     # -1 para o município sem região: a interface some com a linha, em vez de
     # mostrar um recorte que não existe
