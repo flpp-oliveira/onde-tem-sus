@@ -21,20 +21,6 @@ FONTE = os.path.join(RAIZ, "dados_tratados.json")
 
 J = lambda o: json.dumps(o, ensure_ascii=False, separators=(",", ":"))
 
-# "SAO PAULO" -> "São Paulo", mas "PATOS DE MINAS" -> "Patos de Minas". O
-# .title() do Python não conhece preposição e escrevia "Patos De Minas".
-MINUSCULAS = {"de", "da", "do", "das", "dos", "e", "a", "o", "em", "no", "na"}
-
-
-def titulo(s):
-    partes = s.split()
-    out = []
-    for i, w in enumerate(partes):
-        b = w.lower()
-        out.append(b if i and b in MINUSCULAS else b[:1].upper() + b[1:])
-    return " ".join(out)
-
-
 def grava(nome, obj):
     cam = os.path.join(SAIDA, nome)
     txt = obj if isinstance(obj, str) else J(obj)
@@ -183,7 +169,9 @@ def main():
             "type": "Feature",
             # "m" é o índice na lista completa de municípios, o mesmo que o
             # estabelecimento guarda: é por ele que a ficha volta para a cidade
-            "properties": {"m": i, "nome": titulo(nome), "uf": D["ufs"][D["munUF"][i]],
+            # o nome vai como o IBGE grafa ("Ji-Paraná", "Herval d'Oeste"):
+            # qualquer regra de maiúsculas aqui só estragaria a grafia oficial
+            "properties": {"m": i, "nome": nome, "uf": D["ufs"][D["munUF"][i]],
                            "p": int(D["rotP"][i]) or 4,
                            "n": g["n"], "pub": g["pub"],
                            "tm": g["tm"], "sa": g["sa"], "sb": g["sb"]},

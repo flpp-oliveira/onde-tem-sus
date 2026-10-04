@@ -1473,7 +1473,7 @@
       const nb = catalogo.bairros[g2.b];
       if(!nb) continue;
       g2.nome = cap(nb);
-      g2.mun  = cap(catalogo.muns[g2.m]);
+      g2.mun  = catalogo.muns[g2.m];
       g2.uf   = catalogo.ufs[catalogo.munUF[g2.m]];
       g2.k    = chave(g2.nome);
       g2.k2   = '';
@@ -2172,7 +2172,7 @@
       if(recorte.bairro >= 0 && recorte.mun >= 0){
         const m = recorte.mun, b = recorte.bairro;
         vaiParaBairro({tipo:'bairro', m, b, nome:cap(catalogo.bairros[b]),
-          mun:cap(catalogo.muns[m]), uf:catalogo.ufs[catalogo.munUF[m]],
+          mun:catalogo.muns[m], uf:catalogo.ufs[catalogo.munUF[m]],
           n:(estabPorMun.get(m) || []).filter(k => bairroDe[k] === b).length});
       }
     });
@@ -2501,7 +2501,7 @@
       return itemLista(x.uf, x.nome, 'Bairro em ' + x.mun + ' (' + x.uf + ')', x.n, aoClicar);
     const m = munDe[x.i];
     return itemLista(catalogo.ufs[catalogo.munUF[m]], cap(ficha.nome[x.i]) || '—',
-      capCat(catalogo.tipos[tipoDe[x.i]]) + ' em ' + cap(catalogo.muns[m]),
+      capCat(catalogo.tipos[tipoDe[x.i]]) + ' em ' + catalogo.muns[m],
       undefined, aoClicar);
   }
   function abreAchado(x){
@@ -3256,7 +3256,7 @@
       const m = munDe[i];
       const nome = cap(ficha.nome[i]) || 'Estabelecimento de saúde';
       const onde = [cap(ficha.end[i]), cap(catalogo.bairros[bairroDe[i]] || ''),
-                    cap(catalogo.muns[m]) + '/' + catalogo.ufs[catalogo.munUF[m]]]
+                    catalogo.muns[m] + '/' + catalogo.ufs[catalogo.munUF[m]]]
                    .filter(Boolean).join(', ');
       const url = linkDe(i);
       // No celular, o menu de compartilhar do próprio aparelho. Onde ele não
@@ -3305,7 +3305,7 @@
     ul.appendChild(itemFicha('Endereço', ficha ? cap(ficha.end[i]) : ''));
     ul.appendChild(itemFicha('Bairro', cap(catalogo.bairros[bairroDe[i]] || '')));
     ul.appendChild(itemFicha('Município',
-      cap(catalogo.muns[m]) + '/' + catalogo.ufs[catalogo.munUF[m]]));
+      catalogo.muns[m] + '/' + catalogo.ufs[catalogo.munUF[m]]));
     const cp = ficha ? ficha.cep[i] : '';
     ul.appendChild(itemFicha('CEP',
       (cp && cp.length === 8) ? cp.slice(0,5) + '-' + cp.slice(5) : cp));
@@ -3750,7 +3750,7 @@
     const b = bairroDoRotulo(nome, m);
     if(b >= 0){
       verBairro({tipo:'bairro', m, b, nome: cap(catalogo.bairros[b]),
-                 mun: cap(catalogo.muns[m]), uf: catalogo.ufs[catalogo.munUF[m]],
+                 mun: catalogo.muns[m], uf: catalogo.ufs[catalogo.munUF[m]],
                  n: ids.filter(i => bairroDe[i] === b).length});
       return;
     }
@@ -3764,7 +3764,7 @@
     const capa = el('div','capa');
     capa.appendChild(el('h2', null, nome));
     capa.appendChild(el('div','escopo', (ESPECIE[classe] || 'Lugar') +
-      (m >= 0 ? ' em ' + cap(catalogo.muns[m]) + ' (' + catalogo.ufs[catalogo.munUF[m]] + ')' : '')));
+      (m >= 0 ? ' em ' + catalogo.muns[m] + ' (' + catalogo.ufs[catalogo.munUF[m]] + ')' : '')));
     capa.appendChild(el('p','aviso', 'Nenhum estabelecimento cadastrado.'));
     corpo.appendChild(capa);
     if(m >= 0){
@@ -3773,7 +3773,7 @@
         const sc = secao('No município');
         const lista = el('ul','lista');
         lista.appendChild(itemLista(catalogo.ufs[catalogo.munUF[m]],
-          cap(catalogo.muns[m]), 'Município', ids.length, () => vaiParaMun(f)));
+          catalogo.muns[m], 'Município', ids.length, () => vaiParaMun(f)));
         sc.appendChild(lista);
         corpo.appendChild(sc);
       }
