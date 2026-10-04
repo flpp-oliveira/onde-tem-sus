@@ -189,6 +189,16 @@ export async function onRequestPost(context) {
          ruaCorreta || null, numeroCorreto || null, bairroCorreto || null, latSug, lonSug,
          evidenciaKey, ipHash).run();
 
+  // O código de conexão só serve aos limites acima, que olham no máximo 24 h
+  // para trás. Passados 2 dias ele não protege mais nada, então sai — e sai
+  // aqui, a cada report recebido, porque as Pages Functions não têm
+  // agendamento e um comando manual dependeria de alguém lembrar de rodar.
+  // É o prazo que a página Sobre (seção Privacidade) promete.
+  await env.DB.prepare(
+    `UPDATE reports SET ip_hash = NULL
+      WHERE ip_hash IS NOT NULL AND criado_em < datetime('now', '-2 days')`
+  ).run();
+
   return json({ ok: true, anexo });
 }
 

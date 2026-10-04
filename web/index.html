@@ -3155,6 +3155,15 @@
     arqErro.hidden = true;
     f.appendChild(arqErro);
 
+    // O aviso curto fica junto do envio; o detalhe mora na página Sobre, que
+    // abre em outra aba para o formulário preenchido não se perder.
+    const priv = el('p','chamada','Não armazenamos dados da sua localização. Para mais detalhes, acesse ');
+    const lPriv = el('a', null, 'Privacidade');
+    lPriv.href = 'sobre.html#privacidade'; lPriv.target = '_blank'; lPriv.rel = 'noopener';
+    priv.appendChild(lPriv);
+    priv.appendChild(document.createTextNode('.'));
+    f.appendChild(priv);
+
     const botoes = el('div','botoes');
     const bCancela = el('button','bCancela','Cancelar');
     bCancela.type = 'button';
