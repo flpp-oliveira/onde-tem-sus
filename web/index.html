@@ -669,6 +669,11 @@
     .alca .titulo .conta{
       font-weight:400;color:var(--muted);flex:none;margin-left:.34em;
     }
+    /* Em "Perto de você" quem vai na contagem é a cidade, e é ela que pode
+       ser comprida ("Vila Bela da Santíssima Trindade"): ela encurta também. */
+    .alca .titulo .conta.lugar{flex:0 1 auto;min-width:0;overflow:hidden;
+      text-overflow:ellipsis}
+    .alca .titulo b:has(+ .lugar){flex:none}
     /* O cabeçalho já separa. Recolhida, o risco do corpo virava um traço solto
        no pé da tela, embaixo do rótulo. */
     .corpo{border-top:0}
@@ -738,11 +743,10 @@
     /* o numero cede um pouco: a folha tem menos altura para gastar */
     .grande b{font-size:36px}
     .capa h2{font-size:22px}
-    /* Em "Perto de você" a alça já diz o nome da tela, e o título logo
-       abaixo dela era eco. Sai só da vista: a alça lê o rótulo deste h2. */
-    .capa.perto{padding-top:12px}
-    .capa.perto h2{display:none}
-    .capa.perto .escopo{font-size:13px;color:var(--ink2)}
+    /* Em "Perto de você" a alça já diz o nome da tela e a cidade, e a capa
+       logo abaixo dela era eco: sem o título, sobrava a linha "Você está
+       em..." solta num vão. Sai só da vista: a alça lê o h2 e a cidade dele. */
+    .capa.perto{display:none}
   }
 
   /* A mesma regra vale por ALTURA, e não só por largura.
@@ -2334,15 +2338,18 @@
     const uni  = corpo.querySelector('.grande span');
     const alvo = document.querySelector('.alca .titulo');
     if(!alvo) return;
+    const lugar = nome && nome.dataset.lugar;
     previa = nome ? nome.textContent.trim()
                     + (num ? ', ' + num.textContent.trim()
                              + ' ' + (uni ? uni.textContent.trim() : '') : '')
+                    + (lugar ? ', ' + lugar : '')
                   : '';
     alvo.textContent = '';
     if(!nome){ alvo.textContent = 'Painel'; rotuloDaAlca(); return; }
     alvo.appendChild(el('b', null, nome.textContent.trim()));
     if(num) alvo.appendChild(el('span', 'conta',
       ' \u00b7 ' + num.textContent.trim() + ' ' + (uni ? uni.textContent.trim() : '')));
+    else if(lugar) alvo.appendChild(el('span', 'conta lugar', '\u00b7 ' + lugar));
     rotuloDaAlca();
   }
 
@@ -2887,8 +2894,11 @@
     if(!ficha) aoChegarFicha = () => { if(vista === 'perto') verPerto(); };
 
     const capa = el('div', 'capa perto');
-    capa.appendChild(el('h2', null, 'Perto de você'));
+    const h = el('h2', null, 'Perto de você');
     const f = munPorIndice.get(observador.mun);
+    // a cidade vai também para a alça do celular, ao lado do nome da tela
+    if(f) h.dataset.lugar = f.properties.nome + ' (' + f.properties.uf + ')';
+    capa.appendChild(h);
     capa.appendChild(el('div', 'escopo', f
       ? 'Você está em ' + f.properties.nome + ' (' + f.properties.uf + ')'
       : 'A partir da sua localização'));
@@ -2959,7 +2969,17 @@
   // desmanchava o mapa que a pessoa estava lendo; a volta da ficha cai de
   // novo na lista, então o mapa também fica. Sair para o município, ou abrir
   // um pino de fora da lista, tira "Perto de você" da pilha, e aí elas saem.
-  const pertoNaPilha = () => !!observador && pilha.some(x => x.tipo === 'perto');
+  //
+  // Vale o TOPO da pilha, e não "Perto de você" em qualquer lugar dela: depois
+  // de uma busca com a localização ligada, ela fica no fundo do caminho de
+  // volta, e o lugar buscado (Uberaba, a 500 km) aparecia sem ponto nenhum —
+  // os discos escondidos e só as gotas de onde a pessoa está.
+  const pertoNaPilha = () => {
+    if(!observador) return false;
+    const n = pilha.length, t = pilha[n-1];
+    return !!t && (t.tipo === 'perto' ||
+                   (t.tipo === 'estab' && n > 1 && pilha[n-2].tipo === 'perto'));
+  };
   // a gota da ficha aberta, ou -1
   const gotaAberta = () =>
     cartaoIdx >= 0 ? cartaoIdx :
