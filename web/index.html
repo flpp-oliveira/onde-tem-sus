@@ -992,22 +992,24 @@
     if(aoChegarHoras){ const f = aoChegarHoras; aoChegarHoras = null; f(); }
   }).catch(() => console.warn('horarios.json indisponível'));
 
-  // os nomes vêm em caixa alta do CNES
+  // Os nomes de estabelecimento, endereço e bairro vêm em caixa alta do CNES.
+  // Nome de município e de região não passam por aqui: o de município vem
+  // certo do IBGE, e o de região sai pronto do gera_regioes.py (nomes.py).
+  //
+  // Algarismo romano volta à caixa alta: "CAPS AD III", "Dom Pedro II", "Rua
+  // XV de Novembro" saíam "Iii", "Ii", "Xv" — 4.437 nomes, 1.032 endereços e
+  // 586 bairros. O teste exige que TODAS as letras sejam I, V ou X, então
+  // "Centro" não entra. O L fica de fora de propósito: no cadastro ele é nome
+  // de gente e de empresa ("Dra Li", "Liv Medicina"), não o 50. E o "vi" de
+  // bem-te-vi ("Rua Bem Te Vi") continua palavra.
+  const ROMANO = /^(?=[IVX]+$)X{0,3}(IX|IV|V?I{0,3})$/;
   const cap = s => String(s).toLowerCase()
     .replace(/(^|[\s\/(-])([a-zà-ú])/g, (m,a,b) => a + b.toUpperCase())
     .replace(/\b(De|Da|Do|Das|Dos|E|Em|A|O)\b/g, (m,_p,off) => off ? m.toLowerCase() : m)
-    .replace(/\b(Sus|Cnes|Uti|Ubs|Samu|Caps|Sadt|Upa|Esf|Usf|Cpn)\b/gi, m => m.toUpperCase());
-
-  // Nome de macrorregião carrega sigla e algarismo romano — RRAS12 em São
-  // Paulo, MACRORREGIAO II em vários estados. O cap() desfigura os dois,
-  // devolvendo "Rras12" e "Ii": 26 dos 101 nomes saíam assim. Aqui eles
-  // voltam à caixa alta. O teste do romano exige que TODAS as letras estejam
-  // no alfabeto dos numerais, então "Centro" e "Macro" não entram.
-  const ROMANO = /^(?=[IVXLC]+$)X{0,3}(IX|IV|V?I{0,3})$/;
-  const capMacro = s => cap(s).replace(/[\wÀ-ú]+/g, w => {
-    const u = w.toUpperCase();
-    return (/^RRAS\d*$/.test(u) || ROMANO.test(u)) ? u : w;
-  });
+    .replace(/\b(Sus|Cnes|Uti|Ubs|Samu|Caps|Sadt|Upa|Esf|Usf|Cpn)\b/gi, m => m.toUpperCase())
+    .replace(/[A-Za-zÀ-ú]+/g, (w, onde, tudo) =>
+      w.length > 1 && ROMANO.test(w.toUpperCase()) &&
+      !/\b(te|ti)[\s-]+$/i.test(tudo.slice(0, onde)) ? w.toUpperCase() : w);
 
   // O CNES grava em caixa alta e SEM ACENTO: o cap() devolve "Centro de
   // Atencao Psicossocial". Esta tabela repõe o acento.
