@@ -3012,8 +3012,12 @@
   const pertoNaPilha = () => {
     if(!observador) return false;
     const n = pilha.length, t = pilha[n-1];
+    // A ficha só conta quando é de um local DA LISTA: um estabelecimento da
+    // mesma cidade aberto pela busca também fica logo acima de "Perto de
+    // você" na pilha, mas não foi aberto a partir dela.
     return !!t && (t.tipo === 'perto' ||
-                   (t.tipo === 'estab' && n > 1 && pilha[n-2].tipo === 'perto'));
+                   (t.tipo === 'estab' && n > 1 && pilha[n-2].tipo === 'perto' &&
+                    pertoIds.includes(t.i)));
   };
   // a gota da ficha aberta, ou -1
   const gotaAberta = () =>
@@ -4194,6 +4198,13 @@
       vista === 'perto' ? abreCartao(i, false) : vaiParaEstab(i);
       return;
     }
+    // Em "Perto de você" (e na ficha aberta a partir dela), o clique fora de
+    // uma gota não muda de tela: o mapa só mostra as gotas, e o estado ou o
+    // Brasil que estão por baixo não são o que a pessoa olhava. Tocar no
+    // vazio para fechar o cartão — o gesto mais comum — tirava a pessoa da
+    // tela sem querer. O cartão fecha sozinho (closeOnClick); para sair, o
+    // Voltar ou a busca.
+    if(pertoNaPilha()) return;
     const pin = map.getLayer('estab')
               ? map.queryRenderedFeatures(caixa, {layers:['estab']}) : [];
     if(pin.length){
@@ -4272,6 +4283,16 @@
   map.on('mousemove', e => {
     if(!map.getLayer('uf-nome')) return;
     const caixa = [[e.point.x-6,e.point.y-6],[e.point.x+6,e.point.y+6]];
+    // Em "Perto de você" só a gota responde ao clique, então só ela acende o
+    // ponteiro: cidade, rótulo e estado acesos ali prometiam um clique que
+    // não faz nada.
+    if(pertoNaPilha()){
+      apaga();
+      const g0 = map.getLayer('perto-gota')
+               ? map.queryRenderedFeatures(caixa, {layers:['perto-gota']}) : [];
+      map.getCanvas().style.cursor = marcando ? 'crosshair' : g0.length ? 'pointer' : '';
+      return;
+    }
     // o pino vem primeiro: quando ele está na tela, é o alvo mais fino
     const pin = map.getLayer('estab')
               ? map.queryRenderedFeatures(caixa, {layers:['estab']}) : [];
