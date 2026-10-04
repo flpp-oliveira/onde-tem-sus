@@ -2365,7 +2365,7 @@
     queueMicrotask(preveNaAlca);
     queueMicrotask(sincronizaPerto);
   };
-  let vista = 'inicio';           // inicio | resultados | lugar | perto | estab
+  let vista = 'inicio';           // inicio | lugar | perto | estab
 
   const el = (t, cls, txt) => {
     const e = document.createElement(t);
@@ -2523,23 +2523,6 @@
   const distancia = m => m < 1000 ? Math.round(m/10)*10 + ' m'
                                   : (m/1000).toFixed(m < 10000 ? 1 : 0).replace('.', ',') + ' km';
   let observador = null;          // {lat, lon, precisao}, quando a pessoa permite
-
-  function verResultados(termo){
-    vista = 'resultados';
-    marcaSelecionado(null);
-    corpo.className = 'corpo';
-    g('bVoltar').hidden = false;
-    limpaCorpo();
-    if(chave(termo).length < 2){ verInicio(); return; }
-    const achados = busca(termo);
-    if(!achados.length){
-      corpo.appendChild(el('div','vazio','Nada encontrado para "' + termo + '".'));
-      return;
-    }
-    const lista = el('ul','lista');
-    for(const x of achados) lista.appendChild(itemAchado(x, () => abreAchado(x)));
-    corpo.appendChild(lista);
-  }
 
   // Clicar num município da lista destrói o botão clicado: o foco cai no
   // corpo da página, e quem usa leitor de tela é jogado de volta ao começo sem
@@ -3065,6 +3048,7 @@
   }
 
   function vaiParaPerto(){
+    baseBusca = false;
     empilha({tipo:'perto'});
     verPerto();
     enquadraPerto();
@@ -3739,12 +3723,16 @@
   const pilha = [{tipo:'inicio'}];
   // A partir daqui tudo o que a sincronia das gotas lê já existe.
   pertoPronto = true;
-  let raizBusca = null;           // a página de resultados, enquanto houver busca
   // A região é um atalho LATERAL: entra-se nela a partir de uma cidade e
   // pula-se dela para outra. Quem pula espera desfazer o pulo — cidade nova,
   // região, cidade de origem —, e não cair no estado. Então enquanto se anda
   // dentro da mesma região, ela e a cidade de origem ficam no caminho.
   let viaRegiao = null;           // {r, origem: a entrada de município de onde se veio}
+  // Para quem está com a localização ligada, a tela "de casa" é "Perto de
+  // você", e não o Brasil: um lugar escolhido na busca volta para lá. Vale
+  // até a pessoa chegar nela (ou no Brasil, ou limpar a busca), para uma busca
+  // antiga não reaparecer no caminho de volta mais tarde.
+  let baseBusca = false;
   // Guarda o ponto que está no MEIO DO QUE SE VÊ, e não o centro do canvas:
   // metade do canvas fica atrás do painel.
   //
@@ -3793,10 +3781,22 @@
       (x.tipo === 'lugar'  && x.m === m && bairroDoRotulo(x.nome, m) === b)
     ) || null;
   }
+  // Depois de uma busca, com a localização ligada, o caminho de volta é o de
+  // "Perto de você" seguido do lugar escolhido. Do lugar entram só os níveis
+  // que a pessoa ainda não tem no próprio caminho: quem está em Ananindeua e
+  // busca Belém volta de Belém direto para "Perto de você", sem passar duas
+  // vezes pelo Pará.
   function cadeia(e){
+    const c = cadeiaDoLugar(e);
+    if(!baseBusca || !observador || e.tipo === 'perto' || e.tipo === 'inicio') return c;
+    const base = cadeiaDoLugar({tipo:'perto'});
+    const ja = new Set(base.map(chaveNivel));
+    const alvo = c[c.length-1];
+    return base.concat(c.slice(1).filter(x => x === alvo || !ja.has(chaveNivel(x))));
+  }
+  function cadeiaDoLugar(e){
     const c = [{tipo:'inicio'}];
-    if(raizBusca) c.push(raizBusca);
-    if(e.tipo === 'inicio' || e.tipo === 'resultados') return c;
+    if(e.tipo === 'inicio') return c;
     // A região é irmã do município, não mãe: pendura no estado e para aí.
     if(e.tipo === 'regiao'){
       const m0 = (munsDaRegiao.get(e.r) || [])[0];
@@ -3853,7 +3853,6 @@
     if(e.tipo === 'bairro') return 'bai:' + e.x.m + ':' + e.x.b;
     if(e.tipo === 'lugar')  return 'lug:' + e.nome + ':' + e.lng;
     if(e.tipo === 'estab')  return 'est:' + e.i;
-    if(e.tipo === 'resultados') return 'res:' + e.termo;
     if(e.tipo === 'perto')  return 'perto';
     return 'inicio';
   }
@@ -3910,15 +3909,18 @@
   // Repõe um nível sem empilhar de novo. O realce do estado é reposto aqui
   // porque é o único recorte que a navegação desenha.
   function reentra(e){
-    if(e.tipo === 'inicio'){ campo.value = ''; g('bLimpar').hidden = true; verInicio(); }
-    else if(e.tipo === 'resultados') verResultados(e.termo);
+    if(e.tipo === 'inicio'){ campo.value = ''; g('bLimpar').hidden = true; baseBusca = false; verInicio(); }
     else if(e.tipo === 'regiao')  verRegiao(e.r);
     else if(e.tipo === 'uf')      verUF(e.sigla);
     else if(e.tipo === 'mun')     verMun(e.f);
     else if(e.tipo === 'bairro')  verBairro(e.x);
     else if(e.tipo === 'lugar')   verLugarCarta(e.nome, e.classe, e.lng, e.lat);
     else if(e.tipo === 'estab')   verEstab(e.i);
-    else if(e.tipo === 'perto')   verPerto();
+    else if(e.tipo === 'perto'){
+      // chegar em "Perto de você" pelo Voltar encerra a busca
+      if(baseBusca){ campo.value = ''; g('bLimpar').hidden = true; baseBusca = false; }
+      verPerto();
+    }
     map.getSource('sel').setData({type:'FeatureCollection',
       features: e.tipo === 'uf' && UF[e.sigla] ? [UF[e.sigla].feicao] : []});
     // A MESMA folga que o `camera()` usou para medir: ele guardou o ponto do
@@ -3937,15 +3939,9 @@
     reentra(pilha[pilha.length-1]);
   }
 
-  // Escolher na busca põe a página de resultados na raiz: voltar mostra todos
-  // os achados, e voltar de novo sai da busca. É o único caminho até a lista
-  // completa, e some se a pilha for apenas reiniciada.
-  function pilhaDaBusca(termo){
-    raizBusca = {tipo:'resultados', termo, cam:camera()};
-  }
   function zeraPilha(){
-    raizBusca = null;
     viaRegiao = null;
+    baseBusca = false;
     pilha.length = 0;
     pilha.push({tipo:'inicio'});
     ajustaVoltar();
@@ -4184,11 +4180,14 @@
     cxSug.hidden = true; cxSug.textContent = '';
     sugestoes = []; marcado = -1;
   }
+  // Escolher uma sugestão leva ao lugar, e o Voltar sobe pela hierarquia dele
+  // até o Brasil — ou até "Perto de você", com a localização ligada —, onde a
+  // busca termina e o campo é esvaziado. Quem escolheu o lugar errado toca de
+  // novo no campo: o termo continua lá, e as sugestões voltam.
   function escolhe(x){
-    const termo = campo.value.trim();
     fechaSugestoes();
     campo.blur();
-    pilhaDaBusca(termo);
+    baseBusca = !!observador;
     abreAchado(x);
   }
   function marca(i){
