@@ -1587,7 +1587,14 @@
   const controleLocal = new maplibregl.GeolocateControl({
     positionOptions:{enableHighAccuracy:false}, trackUserLocation:false});
   map.addControl(controleLocal, 'bottom-right');
-  controleLocal.on('geolocate', p => {
+  // A bolinha existe desde aqui, mas o resto do site só fica pronto bem mais
+  // abaixo, depois de esperar o mapa carregar. Ela pode ser acionada antes
+  // disso: a cortina de carga a cobre para o toque, não para o teclado. A
+  // posição que chega cedo fica guardada e é usada quando a cortina sai; usar
+  // na hora esbarrava em variáveis e funções que ainda não existiam.
+  let observador = null;          // {lat, lon, precisao, mun}, quando a pessoa permite
+  let sitePronto = false, posicaoGuardada = null;
+  function recebePosicao(p){
     const m0 = municipioDe(p.coords.longitude, p.coords.latitude);
     observador = {lat:p.coords.latitude, lon:p.coords.longitude,
                   precisao:p.coords.accuracy, mun:m0};
@@ -1595,7 +1602,23 @@
     // "Perto de você" responde isso, e o voltar leva ao município. O ponto
     // azul é desenhado pelo controle do MapLibre.
     campo.value = ''; g('bLimpar').hidden = true;
+    // A bolinha tocada durante a carga abre a janela de permissão do
+    // navegador; se a resposta vem depois da cortina, o convite e o balão já
+    // abriram, pedindo para ligar o que agora está ligado. Saem os dois. Pelo
+    // id, e não pelas const deles: estas são declaradas lá embaixo, e a
+    // posição guardada chega antes delas.
+    const cv = g('convite'), dc = g('dicaLocal');
+    if(cv.open) cv.close('ligada');
+    if(!dc.hidden){
+      dc.hidden = true;
+      const b = document.querySelector('.maplibregl-ctrl-geolocate');
+      if(b) b.classList.remove('apontada');
+    }
     vaiParaPerto();
+  }
+  controleLocal.on('geolocate', p => {
+    if(sitePronto) recebePosicao(p);
+    else posicaoGuardada = p;
   });
 
   // As cores que desenhamos POR CIMA da carta mudam com ela. Ficavam literais
@@ -2529,7 +2552,6 @@
   }
   const distancia = m => m < 1000 ? Math.round(m/10)*10 + ' m'
                                   : (m/1000).toFixed(m < 10000 ? 1 : 0).replace('.', ',') + ' km';
-  let observador = null;          // {lat, lon, precisao}, quando a pessoa permite
 
   // Clicar num município da lista destrói o botão clicado: o foco cai no
   // corpo da página, e quem usa leitor de tela é jogado de volta ao começo sem
@@ -4463,6 +4485,8 @@
   // Brasil enquadrado alguns quadros depois. Nada disso mudou de tempo: o que
   // mudou e que o quadro errado acontece atras de uma cortina opaca.
   g('carregando').remove();
+  sitePronto = true;
+  if(posicaoGuardada){ recebePosicao(posicaoGuardada); posicaoGuardada = null; }
 
   // ---- aviso de entrada ---------------------------------------------------
   // Uma vez por navegador. Mostrar a cada visita puniria justamente quem
@@ -4563,9 +4587,11 @@
   g('bConviteSim').onclick = () => convite.close('ligar');
   g('bConviteNao').onclick = () => convite.close('depois');
   // Escape e clique no véu chegam aqui com returnValue vazio: também é recusa.
+  // 'ligada' é o convite fechado pela própria posição, que chegou enquanto ele
+  // estava aberto: não é recusa, e o balão não tem o que dizer.
   convite.addEventListener('close', () => {
     if(convite.returnValue === 'ligar') ligaLocal();
-    else mostraDica(TXT_DEPOIS);
+    else if(convite.returnValue !== 'ligada') mostraDica(TXT_DEPOIS);
   });
   convite.addEventListener('pointerdown', e => {
     const r = convite.getBoundingClientRect();
@@ -4577,12 +4603,15 @@
   // permitida, liga direto (sem janela do navegador); negada, vai direto ao
   // balão. Sem a API (Safari antigo), pergunta.
   async function convidaLocal(){
-    if(cnesPedido) return;
+    // a posição já chegou (a bolinha foi acionada durante a carga): convidar
+    // a ligar o que já está ligado seria só um obstáculo
+    if(cnesPedido || observador) return;
     let estado = 'prompt';
     try{
       if(navigator.permissions)
         estado = (await navigator.permissions.query({name:'geolocation'})).state;
     }catch(_){}
+    if(observador) return;        // a posição pode ter chegado durante a consulta
     if(estado === 'granted') ligaLocal();
     else if(estado === 'denied') mostraDica(TXT_BLOQUEADA);
     else { convite.returnValue = ''; convite.showModal(); }
