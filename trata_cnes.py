@@ -25,8 +25,9 @@ que lê a saída daqui.
 Uso:  python trata_cnes.py [competencia]     ex.: python trata_cnes.py 202606
 Saída: base_tratada_<competencia>.csv e a auditoria de bairros, que são a
        prestação de contas do tratamento; web/fichas.json, que o site
-       busca ao abrir um estabelecimento; e dados_tratados.json, a entrada
-       do gera_site.py.
+       busca ao abrir um estabelecimento; web/horarios.json, o horário de
+       atendimento por dia da semana; e dados_tratados.json, a entrada do
+       gera_site.py.
 """
 import csv, hashlib, json, math, os, re, sys, unicodedata, collections
 
@@ -292,6 +293,7 @@ for r in ler("tbEstabelecimento"):
         _mun_cod=cm, _mun_cnes=(mun_nome.get(cm, ("", ""))[0] or ""),
         _uf=sg, _tp=tp, _natjur=r["CO_NATUREZA_JUR"].strip(),
         _trat="",
+        _u=u,                       # CO_UNIDADE: é a chave da tabela de horários
         cep="".join(ch for ch in r["CO_CEP"] if ch.isdigit()),
         tel=limpa(r["NU_TELEFONE"]), cnes=cnes_cod,
         mun=imun[cm],
@@ -508,6 +510,85 @@ web = os.path.join(AQUI, "web")
 os.makedirs(web, exist_ok=True)
 open(os.path.join(web, "fichas.json"), "w", encoding="utf-8").write(J(fichas))
 
+# ---------------------------------------------------------------- horários --
+# O turno ("manhã e tarde") não responde se está aberto AGORA: 79% dos
+# estabelecimentos caem numa opção só. A tbEstabHorarioAtend tem dia da semana
+# e faixa de hora para 90% deles. Dia: 1 é domingo e 7 é sábado — medido, o 1
+# e o 7 são os dias com menos atendimento (1.657 e 9.299 estabelecimentos,
+# contra ~96 mil de segunda a sexta), e o sábado tem mais que o domingo.
+#
+# Formato: os padrões semanais DISTINTOS numa lista, e cada estabelecimento
+# aponta para o seu. São 5.339 padrões para 97 mil estabelecimentos — "de
+# segunda a sexta, das 7h às 17h" sozinho cobre 20 mil. Um padrão é
+# "23456:0700-1200,1400-1700": os dias, e as faixas que eles têm em comum.
+#
+# Duas normalizações, ambas para dizer 24 h do jeito que o site entende:
+# início igual ao fim ("07:00–07:00", "00:00–00:00") é como o cadastro declara
+# o plantão de um dia inteiro, e 23:59 como fim é a meia-noite.
+#
+# `atual` é o ano e o mês (aamm) da atualização mais recente do horário, para
+# a ficha dizer de quando ele é. Data posterior à competência é erro de
+# digitação do cadastro e fica de fora.
+def _hm(h):
+    try:
+        a, b = h.split(":")
+        v = int(a) * 100 + int(b)
+        return v if 0 <= int(a) <= 24 and 0 <= int(b) < 60 else None
+    except ValueError:
+        return None
+
+pos = {p["_u"]: k for k, p in enumerate(pts)}
+faixas = collections.defaultdict(set)
+atual = {}
+_lidas = 0
+for r in ler("tbEstabHorarioAtend"):
+    _lidas += 1
+    if _lidas % 1000000 == 0:
+        print("  horários: %d linhas lidas" % _lidas)
+    k = pos.get(r["CO_UNIDADE"])
+    if k is None:
+        continue
+    a, b = _hm(r["HR_INICIO_ATENDIMENTO"]), _hm(r["HR_FIM_ATENDIMENTO"])
+    dia = r["CO_DIA_SEMANA"].strip()
+    if a is None or b is None or dia not in "1234567" or len(dia) != 1:
+        continue
+    if a == b:
+        a, b = 0, 2400
+    if b == 2359:
+        b = 2400
+    faixas[k].add((dia, a, b))
+    d = r["TO_CHAR(DT_ATUALIZACAO,'DD/MM/YYYY')"].strip()
+    if len(d) == 10 and d[6:10] + d[3:5] <= COMP:
+        am = d[8:10] + d[3:5]
+        if am > atual.get(k, ""):
+            atual[k] = am
+
+def _padrao(fx):
+    por_dia = collections.defaultdict(list)
+    for dia, a, b in sorted(fx):
+        por_dia[dia].append("%04d-%04d" % (a, b))
+    grupos = collections.defaultdict(list)
+    for dia in sorted(por_dia):
+        grupos[",".join(por_dia[dia])].append(dia)
+    return ";".join("".join(ds) + ":" + f for f, ds in
+                    sorted(grupos.items(), key=lambda g: g[1][0]))
+
+padroes, ipad, cod = [], {}, []
+for k in range(len(pts)):
+    if k not in faixas:
+        cod.append("")
+        continue
+    pd = _padrao(faixas[k])
+    if pd not in ipad:
+        ipad[pd] = len(padroes)
+        padroes.append(pd)
+    cod.append(str(ipad[pd]))
+horarios = {"padroes": padroes, "h": ",".join(cod),
+            "atual": ",".join(atual.get(k, "") for k in range(len(pts)))}
+open(os.path.join(web, "horarios.json"), "w", encoding="utf-8").write(J(horarios))
+print("  horários: %d de %d estabelecimentos (%.1f%%), %d padrões semanais"
+      % (len(faixas), len(pts), 100 * len(faixas) / len(pts), len(padroes)))
+
 # O resto fica num arquivo próprio, e não embutido numa página pronta.
 # Enquanto o dado trafegava dentro do HTML gerado, quem montava o site
 # tinha de abrir esse HTML e pescar o JSON de dentro com expressão regular:
@@ -522,5 +603,8 @@ n_fic = os.path.getsize(os.path.join(web, "fichas.json"))
 print()
 print("gerado: web/fichas.json      %5.1f MB  (%.1f MB com gzip)"
       % (n_fic / 1e6, gz(os.path.join(web, "fichas.json")) / 1e6))
+n_hor = os.path.getsize(os.path.join(web, "horarios.json"))
+print("gerado: web/horarios.json    %5.1f MB  (%.1f MB com gzip)"
+      % (n_hor / 1e6, gz(os.path.join(web, "horarios.json")) / 1e6))
 print("gerado: dados_tratados.json  %5.1f MB  (não publicado; entra no gera_site.py)"
       % (os.path.getsize(cam_dados) / 1e6,))

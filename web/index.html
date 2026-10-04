@@ -329,6 +329,18 @@
   .lista.perto .txt > span{display:block}
   .lista.perto .txt .h24{color:var(--ok);font-weight:500}
   .lista.perto + .chamada{margin:10px 0 0}
+  .lista.perto .txt .fechado{color:var(--muted)}
+  /* "Só o que está aberto agora": a linha inteira é o alvo do toque */
+  .soAberto{display:flex;align-items:center;justify-content:space-between;gap:12px;
+    margin-top:12px;padding:10px 14px;border-radius:10px;background:var(--toque2);
+    font-size:13.5px;cursor:pointer}
+  .soAberto input{width:20px;height:20px;accent-color:var(--pub);margin:0;flex:none}
+  .cartao .selo.fechado{background:var(--muted)}
+  .semana{display:block;line-height:1.55}
+  .semana > span{display:block}
+  .semana .agora{font-weight:600;color:var(--ok)}
+  .semana .agora.fechado{color:var(--muted)}
+  .semana small{display:block;margin-top:3px;font-size:11.5px;color:var(--muted)}
 
   /* O cartão de um local, preso à gota. É o popup do MapLibre com a pele do
      painel: as mesmas cores de superfície e tinta, então segue o tema. */
@@ -941,6 +953,26 @@
     if(aoChegarFicha){ const f = aoChegarFicha; aoChegarFicha = null; f(); }
   }).catch(() => console.warn('fichas.json indisponível'));
 
+  // O horário por dia da semana (1 = domingo … 7 = sábado), em arquivo à
+  // parte e fora do caminho crítico, como a ficha: 0,2 MB com gzip que só a
+  // pergunta "está aberto agora?" usa. Cada padrão vira, uma vez, uma lista
+  // de faixas em minutos por dia; o estabelecimento aponta para o seu.
+  let horas = null, aoChegarHoras = null;
+  const emMin = v => Math.floor(v / 100) * 60 + v % 100;
+  fetch('horarios.json').then(r => r.json()).then(H => {
+    const pads = H.padroes.map(pd => {
+      const dias = Array.from({length:8}, () => []);
+      for(const gr of pd.split(';')){
+        const [ds, fx] = gr.split(':');
+        const faixas = fx.split(',').map(f => f.split('-').map(x => emMin(+x)));
+        for(const d of ds) dias[+d] = faixas;
+      }
+      return dias;
+    });
+    horas = {pads, h: H.h.split(',').map(x => x === '' ? -1 : +x), atual: H.atual.split(',')};
+    if(aoChegarHoras){ const f = aoChegarHoras; aoChegarHoras = null; f(); }
+  }).catch(() => console.warn('horarios.json indisponível'));
+
   // os nomes vêm em caixa alta do CNES
   const cap = s => String(s).toLowerCase()
     .replace(/(^|[\s\/(-])([a-zà-ú])/g, (m,a,b) => a + b.toUpperCase())
@@ -1081,6 +1113,69 @@
     const t = catalogo.turnos[turnoDe[i]];
     return t === undefined ? '' : (TURNO_CURTO.get(t) || capCat(t));
   };
+
+  // ---- aberto agora -----------------------------------------------------
+  // Três fontes, nesta ordem:
+  //  1. turno de 24 horas: aberto sempre. Prevalece sobre a tabela de
+  //     horário porque é a declaração mais específica — e dos 9.235 que a
+  //     fazem, só 784 têm horário na tabela, quase sempre o administrativo
+  //     ("07:00–17:00"), que contradiria o plantão;
+  //  2. o horário por dia da semana do CNES, para 90% dos estabelecimentos;
+  //  3. sem ele, o TURNO lido como horário comercial, de segunda a sexta.
+  //     É estimativa, e o texto diz isso ("pelo turno"). Turnos
+  //     intermitentes não têm leitura: ficam sem resposta.
+  // "Agora" é o relógio de quem olha, que em "Perto de você" está no mesmo
+  // fuso do estabelecimento.
+  const TURNO_FAIXA = new Map([
+    ['ATENDIMENTOS NOS TURNOS DA MANHA E A TARDE',     [[420, 1080]]],
+    ['ATENDIMENTO NOS TURNOS DA MANHA, TARDE E NOITE', [[420, 1320]]],
+    ['ATENDIMENTO SOMENTE PELA MANHA',                 [[420, 720]]],
+    ['ATENDIMENTO SOMENTE A TARDE',                    [[780, 1080]]],
+    ['ATENDIMENTO SOMENTE A NOITE',                    [[1080, 1320]]],
+  ]);
+  function estadoAgora(i, t = new Date()){
+    if(turnoDe[i] === TURNO_24H) return {aberto:true, fonte:'24h'};
+    // antes de o arquivo chegar não se sabe se há horário detalhado, e o
+    // turno sozinho poderia contradizê-lo: melhor não responder
+    if(!horas) return {aberto:null};
+    const m = t.getHours() * 60 + t.getMinutes();
+    const p = horas.h[i];
+    if(p >= 0){
+      const f = horas.pads[p][t.getDay() + 1].find(([a, b]) => a <= m && m < b);
+      return f ? {aberto:true, fonte:'horario', ate:f[1]} : {aberto:false, fonte:'horario'};
+    }
+    const fx = TURNO_FAIXA.get(catalogo.turnos[turnoDe[i]]);
+    if(!fx) return {aberto:null};
+    const util = t.getDay() >= 1 && t.getDay() <= 5;
+    const f = util && fx.find(([a, b]) => a <= m && m < b);
+    return f ? {aberto:true, fonte:'turno', ate:f[1]} : {aberto:false, fonte:'turno'};
+  }
+  const hora = v => v >= 1440 ? 'meia-noite'
+    : String(Math.floor(v / 60)).padStart(2, '0') + ':' + String(v % 60).padStart(2, '0');
+  // A frase curta do estado, para a lista e o cartão; null quando não há.
+  function fraseAgora(e){
+    if(e.aberto == null) return null;
+    if(e.fonte === '24h') return {txt:'Aberto 24 horas', cls:'h24'};
+    if(!e.aberto) return {txt:'Fechado agora', cls:'fechado'};
+    return {txt: e.fonte === 'turno' ? 'Aberto agora, pelo turno'
+                                     : 'Aberto até ' + hora(e.ate), cls:'h24'};
+  }
+  // A semana inteira, de segunda a domingo, juntando os dias iguais
+  // vizinhos: "Seg a Sex: 07:00–12:00, 14:00–17:00".
+  const NOME_DIA = ['', 'Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+  function semana(p){
+    const faixa = ([a, b]) => a === 0 && b >= 1440 ? '24 horas' : hora(a) + '–' + hora(b);
+    const linhas = [];
+    for(const d of [2, 3, 4, 5, 6, 7, 1]){
+      const fx = horas.pads[p][d];
+      const t = fx.length ? fx.map(faixa).join(', ') : 'fechado';
+      const ult = linhas[linhas.length - 1];
+      if(ult && ult.t === t){ ult.fim = d; ult.n++; }
+      else linhas.push({ini:d, fim:d, n:1, t});
+    }
+    return linhas.map(l => (l.n === 1 ? NOME_DIA[l.ini]
+      : NOME_DIA[l.ini] + (l.n === 2 ? ' e ' : ' a ') + NOME_DIA[l.fim]) + ': ' + l.t);
+  }
 
   // ---- região de saúde ----------------------------------------------------
   // Recorte do Decreto 7.508/2011: um grupo de municípios vizinhos que combina
@@ -1551,6 +1646,7 @@
   let pertoIds = [];              // os da lista vigente, do mais perto ao mais longe
   let pertoNoMapa = null, pertoPronto = false, gotaRealcada = null;
   let cartao = null, cartaoIdx = -1;      // o popup aberto e de qual local
+  let pertoAberto = false;                // "Só o que está aberto agora"
 
   function montaCamadas(){
     const C = CORES();
@@ -2638,10 +2734,14 @@
     const cats = cat ? CATEGORIAS.filter(x => x.id === cat) : CATEGORIAS;
     const cand = cats.map(() => []);
     for(let i = 0; i < N; i++){
-      let d = -1;
+      let d = -1, fora = false;
       cats.forEach((c, k) => {
-        if(!naCategoria(c, i)) return;
-        if(d < 0) d = haversine(observador.lat, observador.lon, lat[i], lon[i]);
+        if(fora || !naCategoria(c, i)) return;
+        if(d < 0){
+          // com o filtro ligado, quem não está aberto agora nem entra
+          if(pertoAberto && estadoAgora(i).aberto !== true){ fora = true; return; }
+          d = haversine(observador.lat, observador.lon, lat[i], lon[i]);
+        }
         cand[k].push([d, i]);
       });
     }
@@ -2676,10 +2776,12 @@
     // relance, e a terceira linha custava um terço da altura de cada local.
     const meta = el('span', null, capCat(catalogo.tipos[tipoDe[i]]) + ' · ' +
       (estab.esfera[i] === 0 ? 'pública' : 'conveniada'));
-    const tc = turnoCurto(i);
-    if(tc){
+    // O estado de agora diz mais que o turno; sem ele, fica o turno.
+    const fa = fraseAgora(estadoAgora(i)), tc = turnoCurto(i);
+    if(fa || tc){
       meta.appendChild(document.createTextNode(' · '));
-      meta.appendChild(el('span', turnoDe[i] === TURNO_24H ? 'h24' : null, tc));
+      meta.appendChild(fa ? el('span', fa.cls, fa.txt)
+                          : el('span', turnoDe[i] === TURNO_24H ? 'h24' : null, tc));
     }
     t.appendChild(meta);
     b.appendChild(t);
@@ -2709,7 +2811,10 @@
     l.setAttribute('aria-hidden', 'true');
     cab.appendChild(l);
     cab.appendChild(el('span', null, c.rot));
-    if(turnoDe[i] === TURNO_24H) cab.appendChild(el('span', 'selo', '24 h'));
+    const ea = estadoAgora(i);
+    if(ea.fonte === '24h') cab.appendChild(el('span', 'selo', '24 h'));
+    else if(ea.aberto === true) cab.appendChild(el('span', 'selo', 'Aberto'));
+    else if(ea.aberto === false) cab.appendChild(el('span', 'selo fechado', 'Fechado'));
     raiz.appendChild(cab);
 
     raiz.appendChild(el('b', 'nome', ficha ? (cap(ficha.nome[i]) || '—') : '…'));
@@ -2808,6 +2913,17 @@
       grade.appendChild(b);
     }
     s1.appendChild(grade);
+    const so = el('label', 'soAberto');
+    so.appendChild(el('span', null, 'Só o que está aberto agora'));
+    const cx = el('input');
+    cx.type = 'checkbox';
+    cx.checked = pertoAberto;
+    cx.onchange = () => { pertoAberto = cx.checked; verPerto(); enquadraPerto(); };
+    so.appendChild(cx);
+    s1.appendChild(so);
+    // sem o arquivo de horário, a lista e o filtro só conhecem os de 24 h:
+    // repinta quando ele chegar
+    if(!horas) aoChegarHoras = () => { if(vista === 'perto') verPerto(); };
     corpo.appendChild(s1);
 
     const cat = pertoCat && CATEGORIAS.find(x => x.id === pertoCat);
@@ -3010,6 +3126,33 @@
     return li;
   }
 
+  // O horário da ficha: a semana declarada no CNES e o estado de agora. Sem
+  // horário detalhado, o turno, como antes. O "atualizado em" diz de quando
+  // é a declaração: um em cada dez tem mais de dois anos.
+  function itemHorario(i){
+    const li = el('li');
+    li.appendChild(el('dt', null, 'Horário'));
+    const dd = el('dd', 'semana');
+    const e = estadoAgora(i), fa = fraseAgora(e);
+    if(fa) dd.appendChild(el('span', 'agora' + (e.aberto ? '' : ' fechado'), fa.txt));
+    const p = horas ? horas.h[i] : -1;
+    if(p >= 0 && turnoDe[i] !== TURNO_24H){
+      semana(p).forEach(l => dd.appendChild(el('span', null, l)));
+      const am = horas.atual[i];
+      dd.appendChild(el('small', null, 'Horário declarado no CNES' +
+        (am ? ', atualizado em ' + am.slice(2) + '/20' + am.slice(0, 2) : '') + '.'));
+    }else if(turnoDe[i] >= 0){
+      dd.appendChild(el('span', null, capCat(catalogo.turnos[turnoDe[i]])));
+      if(e.fonte === 'turno')
+        dd.appendChild(el('small', null, 'Sem horário detalhado no CNES: o estado é estimado pelo turno, de segunda a sexta.'));
+    }else{
+      dd.appendChild(el('span', 'semdado', 'Não informado'));
+    }
+    if(!horas) aoChegarHoras = () => { if(vista === 'estab' && reportIdx === i) verEstab(i); };
+    li.appendChild(dd);
+    return li;
+  }
+
   function verEstab(i){
     vista = 'estab';
     corpo.className = 'corpo';
@@ -3041,8 +3184,7 @@
       (cp && cp.length === 8) ? cp.slice(0,5) + '-' + cp.slice(5) : cp));
     ul.appendChild(itemFicha('Telefone', ficha ? ficha.tel[i].trim() : '',
                              'Sem telefone cadastrado'));
-    ul.appendChild(itemFicha('Horário',
-      turnoDe[i] >= 0 ? capCat(catalogo.turnos[turnoDe[i]]) : ''));
+    ul.appendChild(itemHorario(i));
     s1.appendChild(ul);
     corpo.appendChild(s1);
 
