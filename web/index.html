@@ -338,6 +338,11 @@
   .cartao .selo.fechado{background:var(--muted)}
   /* As duas ações da ficha, logo abaixo do nome: o que a pessoa mais faz com
      um endereço de saúde é ir até lá ou mandá-lo para alguém. */
+  /* Aviso da unidade de presídio ou socioeducativa: antes das ações, porque
+     muda o que "Como chegar" significa para quem lê. */
+  .restrito{margin:0 18px 14px;padding:10px 12px;border-radius:10px;
+    background:var(--toque);color:var(--ink);font-size:13.5px;line-height:1.45;
+    border-left:4px solid var(--conv)}
   .acoesFicha{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:0 18px 16px}
   .acoesFicha a,.acoesFicha button{
     display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
@@ -960,6 +965,11 @@
   const turnoDe = estab.turno.split(',').map(Number);
   const bairroDe= estab.bairro.split(',').map(Number);
   const servDe  = estab.serv.split('|').map(x => x ? x.split(',').map(Number) : []);
+  // Unidades de saúde de presídio e de unidade socioeducativa: continuam no
+  // mapa, na busca e nas contagens (são rede SUS), mas atendem só quem está
+  // lá dentro. Saem de "Perto de você" e a ficha avisa. A regra está no
+  // trata_cnes.py.
+  const restrito = new Set(estab.restrito || []);
 
   // A ficha (nome, endereço, CEP, telefone, CNES) mora num arquivo de 9 MB à
   // parte, o mesmo que o site usa. O mapa não espera por ela: quem abrir um
@@ -2774,6 +2784,7 @@
     const cats = cat ? CATEGORIAS.filter(x => x.id === cat) : CATEGORIAS;
     const cand = cats.map(() => []);
     for(let i = 0; i < N; i++){
+      if(restrito.has(i)) continue;         // não atende quem procura perto
       let d = -1, fora = false;
       cats.forEach((c, k) => {
         if(fora || !naCategoria(c, i)) return;
@@ -3320,6 +3331,10 @@
     capa.appendChild(el('div','escopo', capCat(catalogo.tipos[tipoDe[i]]) + ', ' +
       (estab.esfera[i] === 0 ? 'administração pública' : 'privada conveniada')));
     corpo.appendChild(capa);
+    if(restrito.has(i))
+      corpo.appendChild(el('p', 'restrito',
+        'Unidade de saúde de estabelecimento prisional ou socioeducativo: ' +
+        'não atende o público em geral.'));
     corpo.appendChild(acoesFicha(i));
 
     const s1 = secao(null);

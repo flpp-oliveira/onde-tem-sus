@@ -306,6 +306,51 @@ for r in ler("tbEstabelecimento"):
     ))
 
 print("  no mapa: %d" % len(pts))
+
+# ----------------------------------------------- acesso restrito -------------
+# Unidade de saúde que funciona DENTRO de presídio ou de unidade
+# socioeducativa: está na rede SUS e no mapa, mas atende só quem está lá
+# dentro. O sinal é o NOME. Os marcadores oficiais do CNES não servem: o
+# serviço 100 e as equipes prisionais antigas (tipos 05 e 50 a 54) não
+# aparecem em nenhum estabelecimento desta competência, e a "atenção primária
+# prisional" (serviço 159/009) e a equipe EAPP (74) estão também em UBS comuns
+# de município, que atendem o público e mandam equipe ao presídio da cidade —
+# medido: 745 das 1.247 que os têm. Sigla sozinha (APAC, CDP) dá falso
+# positivo e fica de fora; "CASE" e "FASE" valem só como palavra inteira, e
+# CDP e CPP (centro de detenção provisória, de progressão penitenciária) só no
+# começo do nome, que é como São Paulo as cadastra ("CDP DE AGUAI"). Custódia
+# sozinha não entra: é também município, em Pernambuco. O hospital de custódia
+# (psiquiátrico judiciário) atende só quem cumpre medida de segurança.
+#
+# Os nomes regionais também contam: "Conjunto Penal" (BA), "Estabelecimento
+# Penal" (MS), CENSE (PR), FUNASE e CASEM (PE), IASES (ES), CERESP (MG), a
+# SEAP (secretaria de administração penitenciária) do Rio, os "Centros de
+# Recuperação Regional" do Pará. "PENAL" como palavra inteira não teve
+# nenhum falso positivo na base.
+RESTRITO = re.compile(r"PRESIDI|PENITENCI|\bPENIT\b|PRISION|DETENCAO|"
+                      r"\bPENAL\b|\bCADEIA\b|CADEIAO|PRISAO PROVISORIA|"
+                      r"CASA DE CUSTODIA|HOSPITAL DE CUST\b|HOSPITAL DE CUSTODIA|"
+                      r"UNIDADE DE CUSTODIA|\bHCTP\b|PSIQUIATRICO E JUDICIARIO|"
+                      r"SEMI ?ABERTO|PRIVADAS? DE LIBERDADE|\bSEAP\b|"
+                      r"SOCI(O ?)?EDUC|FUNDACAO CASA|RESSOCIALIZ|INTERNACAO PROVISORIA|"
+                      r"\bCASE\b|\bFASE\b|\bCENSE\b|FUNASE|\bCASEM\b|IASES|CERESP|"
+                      r"CENTRO DE RECUPERACAO REGIONAL|"
+                      r"^(CDP|CPP)\b|\b(CDP|CPP)$")
+# Falsos positivos conferidos à mão: bairro e aldeia com o nome "Presídio", a
+# UBS que leva o nome de uma pessoa, a farmácia estadual de Sergipe (CASE é
+# Centro de Atenção à Saúde de Sergipe) e a USF do bairro Marex, em Belém.
+RESTRITO_EXCECAO = re.compile(r"VILA DO PRESIDIO|ALDEIA PRESIDIO|FERNANDO PRESIDIO|"
+                              r"ATENCAO A SAUDE DE SERGIPE|FAMILIA DA CDP")
+def _sem_acento(x):
+    return "".join(c for c in unicodedata.normalize("NFD", x)
+                   if unicodedata.category(c) != "Mn").upper()
+# Marca no próprio registro, e não por posição: a lista ainda é reordenada
+# por coordenada mais abaixo, e é a ordem final que o site usa.
+for p in pts:
+    nm = _sem_acento(p["nome"])
+    p["_restrito"] = bool(RESTRITO.search(nm)) and not RESTRITO_EXCECAO.search(nm)
+print("  acesso restrito (presídio ou unidade socioeducativa): %d"
+      % sum(p["_restrito"] for p in pts))
 for k, v in descartados.most_common():
     print("    descartado — %s: %d" % (k, v))
 
@@ -493,6 +538,7 @@ dados = {
     "esfera": [p["esfera"] for p in pts],
     "serv": "|".join(",".join(str(s) for s in p["serv"]) for p in pts),
     "leitos": {str(i): p["leitos"] for i, p in enumerate(pts) if p["leitos"]},
+    "restrito": [k for k, p in enumerate(pts) if p["_restrito"]],
     "tipos": tipos, "turnos": turnos, "servicos": servicos,
     "muns": muns, "munCod": mun_cod, "munUF": mun_uf, "ufs": ufs,
     "competencia": COMP,

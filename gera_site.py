@@ -98,7 +98,10 @@ def main():
                                 "esfera": D["esfera"], "mun": D["mun"],
                                 "tipo": D["tipo"], "turno": D["turno"],
                                 "bairro": D["bairro"], "serv": D["serv"],
-                                "leitos": D["leitos"]})
+                                "leitos": D["leitos"],
+                                # índices das unidades de presídio e de
+                                # unidade socioeducativa (ver trata_cnes.py)
+                                "restrito": D["restrito"]})
     cru += a; gz += b
 
     # --- UFs como GeoJSON ---------------------------------------------------
