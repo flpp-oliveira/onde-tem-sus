@@ -3614,18 +3614,26 @@
         if(evidencia) d.set('evidencia', evidencia, 'evidencia.jpg');
 
         const resp = await fetch('/api/report', {method:'POST', body:d});
-        if(!resp.ok) throw new Error('HTTP ' + resp.status);
+        // A rota explica a recusa no campo "erro" (limite, falha passageira):
+        // vale mais que a frase genérica. Vai por textContent, como o resto.
+        if(!resp.ok){
+          const e = await resp.json().catch(() => ({}));
+          const falha = new Error('HTTP ' + resp.status);
+          if(typeof e.erro === 'string' && e.erro)
+            falha.paraQuemEnvia = 'Não foi possível enviar: ' + e.erro + '.';
+          throw falha;
+        }
         // o anexo pode ser recusado por limite sem que o report se perca
         const r = await resp.json().catch(() => ({}));
         msg.textContent = (r.anexo === 'recusado_limite')
           ? 'Obrigado! Seu report foi enviado, mas a foto não pôde ser anexada agora — o limite diário de anexos foi atingido.'
-          : (r.anexo === 'recusado_tipo' || r.anexo === 'recusado_tamanho')
+          : String(r.anexo || '').startsWith('recusado_')
           ? 'Obrigado! Seu report foi enviado, mas a imagem não pôde ser anexada.'
           : 'Obrigado! Seu report foi enviado.';
         msg.className = 'aviso ok'; msg.hidden = false;
         bEnvia.textContent = 'Enviado';
       }catch(err){
-        msg.textContent = 'Não foi possível enviar agora. Tente novamente mais tarde.';
+        msg.textContent = err.paraQuemEnvia || 'Não foi possível enviar agora. Tente novamente mais tarde.';
         msg.className = 'aviso erro'; msg.hidden = false;
         bEnvia.disabled = false; bEnvia.textContent = 'Enviar';
       }
