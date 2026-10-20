@@ -52,8 +52,10 @@ Os envios ficam **registrados para conferência**, sem aplicação automática s
 os dados do CNES: nenhuma correção entra no mapa sozinha.
 
 Cada report é gravado numa tabela D1 (SQLite) e a evidência, quando existe, num
-bucket R2. Para conter abuso, o IP é guardado apenas como hash SHA-256, usado só
-para limitar a cinco envios por IP a cada dez minutos.
+bucket R2. O IP não é guardado: para conter abuso fica só um código calculado
+dele com uma chave secreta (HMAC com o `SEGREDO_IP`), que muda todo dia. A cada
+envio, a rota apaga esse código dos reports com mais de 2 dias. Ele limita cada conexão a cinco envios a cada dez
+minutos; o site inteiro aceita até 2.000 reports por dia.
 
 ---
 
@@ -94,14 +96,71 @@ bucket e preencher o `database_id` no `wrangler.toml`:
 wrangler d1 create mapa-sus-reports
 wrangler r2 bucket create mapa-sus-evidencias
 wrangler d1 execute mapa-sus-reports --file=schema.sql --remote
+wrangler pages secret put SEGREDO_IP --project-name onde-tem-sus
 ```
 
-Para rodar tudo localmente, com banco e bucket falsos nesta máquina:
+O último pede o valor do segredo, que não fica em arquivo nenhum. Sem ele a rota
+recusa os reports. O comando grava o segredo só no ambiente de produção, e ele
+passa a valer no deploy seguinte. As prévias de deploy usam outro ambiente: para
+testar o formulário nelas, o segredo também precisa ser criado ali (painel do
+Pages, Settings → Variables and Secrets, ambiente Preview).
+
+Para rodar tudo localmente, com banco e bucket falsos nesta máquina (o segredo
+local vai num arquivo `.dev.vars`, fora do git):
 
 ```
 wrangler d1 execute mapa-sus-reports --local --file=schema.sql
 wrangler pages dev
 ```
+
+O bucket não tem acesso público: nem endereço `r2.dev` nem domínio próprio
+(conferido em 20/10/2026 com `wrangler r2 bucket dev-url get mapa-sus-evidencias`
+e `wrangler r2 bucket domain list mapa-sus-evidencias`). As imagens só são vistas pelo painel da
+Cloudflare ou pela linha de comando.
+
+---
+
+## Conferência dos reports
+
+A conferência é feita à mão. Para listar os reports mais recentes, com o ponto
+onde o pino estava (`lat`, `lon`) e a correção sugerida:
+
+```
+wrangler d1 execute mapa-sus-reports --remote --command "SELECT id, cnes, nome, tipo, texto, lat, lon, rua_correta, numero_correto, bairro_correto, lat_sugerida, lon_sugerida, evidencia_key, criado_em FROM reports ORDER BY id DESC LIMIT 50"
+```
+
+O `criado_em` está em UTC: um envio feito entre 21h e meia-noite no horário de
+Brasília aparece com o dia seguinte. Para achar o report de um pedido de
+remoção, busque pelo código CNES do estabelecimento e confira o dia com essa
+diferença:
+
+```
+wrangler d1 execute mapa-sus-reports --remote --command "SELECT id, nome, tipo, texto, evidencia_key, criado_em FROM reports WHERE cnes = '<cnes>' ORDER BY id DESC"
+```
+
+Para baixar uma imagem e conferir, use no arquivo a mesma extensão da chave
+(`.jpg`, `.png` ou `.webp`):
+
+```
+wrangler r2 object get mapa-sus-evidencias/<evidencia_key> --remote --file evidencia.jpg
+```
+
+Feita a análise, o report é apagado, como promete a página Sobre. A decisão de
+corrigir ou não vem depois e não depende dele. Primeiro sai a imagem do bucket,
+se houver, e depois a linha do banco. Nessa ordem, uma falha no meio deixa no
+máximo uma linha apontando para uma imagem que já não existe, nunca uma imagem
+sem linha que ninguém acharia:
+
+```
+wrangler r2 object delete mapa-sus-evidencias/<evidencia_key> --remote
+wrangler d1 execute mapa-sus-reports --remote --command "DELETE FROM reports WHERE id = <id>"
+```
+
+Um pedido de remoção recebido por e-mail segue o mesmo caminho, mesmo antes da
+análise.
+
+O código de conexão (`ip_hash`) não precisa de limpeza à mão: a própria rota o
+apaga dos reports com mais de 2 dias a cada envio.
 
 ---
 
