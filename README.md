@@ -31,6 +31,7 @@ Artefato de trabalho de conclusão de curso.
 | `insumos/municipios_ibge.json` | código IBGE, nome e UF dos 5.570 municípios |
 | `insumos/malha_uf_maxima.json` | malha das UFs, do IBGE |
 | `insumos/simplifica.py` | simplificação Douglas-Peucker aplicada à malha |
+| `insumos/correcoes.csv` | pontos corrigidos a partir de reports analisados à mão |
 | `docs/FICHA_DE_CITACAO.md` | fonte, competência e volumetria da base |
 | `docs/HASHES_BASE_202606.txt` | SHA-256 dos 109 arquivos da competência |
 | `docs/LAYOUT_tbEstabelecimento.md` | as 56 colunas da tabela principal do CNES |
@@ -49,7 +50,8 @@ certo por escrito **ou** marcar o ponto correto tocando no mapa. É possível
 anexar uma foto ou print como evidência, até 1 MB.
 
 Os envios ficam **registrados para conferência**, sem aplicação automática sobre
-os dados do CNES: nenhuma correção entra no mapa sozinha.
+os dados do CNES: nenhuma correção entra no mapa sozinha. A que procede, depois de
+analisada à mão, entra por `insumos/correcoes.csv` (ver "Conferência dos reports").
 
 Cada report é gravado numa tabela D1 (SQLite) e a evidência, quando existe, num
 bucket R2. O IP não é guardado: para conter abuso fica só um código calculado
@@ -62,7 +64,7 @@ minutos; o site inteiro aceita até 2.000 reports por dia.
 ## Reprodução
 
 Baixe a base da competência em
-<https://cnes.datasus.gov.br/pages/downloads/arquivosBaseDeDados.jsp>,
+<https://cnes.datasus.gov.br/pages/downloads/arquivosBaseDados.jsp>,
 descompacte na raiz deste repositório como `BASE_DE_DADOS_CNES_202606/`,
 confira os hashes contra `docs/HASHES_BASE_202606.txt` e rode:
 
@@ -145,8 +147,26 @@ Para baixar uma imagem e conferir, use no arquivo a mesma extensão da chave
 wrangler r2 object get mapa-sus-evidencias/<evidencia_key> --remote --file evidencia.jpg
 ```
 
-Feita a análise, o report é apagado, como promete a página Sobre. A decisão de
-corrigir ou não vem depois e não depende dele. Primeiro sai a imagem do bucket,
+Se o report procede, a correção vai para `insumos/correcoes.csv`, uma linha por
+estabelecimento, com o ponto que o site passa a usar:
+
+```
+cnes;lat;lon;data;motivo
+9058516;-1.29436;-47.94319;2026-10-20;Ponto do CNES cerca de 380 m ao sul da Rua Major Wilson...
+```
+
+O `trata_cnes.py` aplica as linhas depois de gravar a base tratada, que continua
+sendo o CNES puro: só o que vai para o site muda. Cada correção aparece no
+progresso com a distância do ponto movido. Uma linha cujo estabelecimento não
+está no mapa da competência não é aplicada, e uma cujo ponto o CNES já passou a
+declarar (a até 30 m) é avisada para sair do arquivo. O script para, com a linha
+indicada, diante de cabeçalho errado, CNES repetido, coordenada inválida ou ponto
+a mais de 50 km do declarado, que costuma ser dígito trocado.
+Depois é regerar o site (`trata_cnes.py`, `gera_site.py`) e publicar. O arquivo
+não leva nada de quem enviou o report: é o registro permanente da decisão.
+
+Feita a análise, e aplicada a correção quando houver, o report é apagado, como
+promete a página Sobre. Primeiro sai a imagem do bucket,
 se houver, e depois a linha do banco. Nessa ordem, uma falha no meio deixa no
 máximo uma linha apontando para uma imagem que já não existe, nunca uma imagem
 sem linha que ninguém acharia:

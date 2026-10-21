@@ -905,12 +905,12 @@
   <h2 id="tituloAviso">Sobre a precisão dos dados</h2>
   <p>Os endereços e as coordenadas vêm do <strong>CNES</strong>, o cadastro
      oficial do Ministério da Saúde, preenchido por cada gestor local. Esses
-     dados podem conter inconsistências, e o mapa os apresenta exatamente como
-     o cadastro declara, <strong>sem correção automática</strong>.</p>
+     dados podem conter inconsistências, e o mapa os apresenta como o cadastro
+     declara, <strong>sem correção automática</strong>.</p>
   <p>Se você conhece um estabelecimento que está no lugar errado, que não
      existe mais ali ou que aparece duplicado, abra a ficha dele e use o botão
-     <strong>Reportar localização</strong>. As correções enviadas ficam
-     registradas para conferência.</p>
+     <strong>Reportar localização</strong>. Cada envio é conferido, e é
+     assim que o mapa vai ficando mais preciso.</p>
   <button id="bAvisoOk" type="button" autofocus>Entendi</button>
 </dialog>
 
@@ -2752,7 +2752,7 @@
     const dObs = i => haversine(observador.lat, observador.lon, lat[i], lon[i]);
     if(perto)
       s2.appendChild(el('p','chamada',
-        'Distância em linha reta até a coordenada declarada no CNES. 38,5% dos '
+        'Distância em linha reta até o ponto de cada estabelecimento. 38,5% dos '
         + 'endereços não têm número, e nesses casos o ponto pode estar a '
         + 'centenas de metros do local real.'));
 
@@ -2915,7 +2915,7 @@
 
     const acoes = el('div', 'acoes');
     // Só o DESTINO vai no link: a posição de quem olha não sai do aparelho, e
-    // o próprio Maps pega a origem. A coordenada é a do CNES, a mesma do pino.
+    // o próprio Maps pega a origem. A coordenada é a mesma do pino.
     const rota = el('a', null, 'Rota');
     rota.href = 'https://www.google.com/maps/dir/?api=1&destination=' +
                 lat[i].toFixed(5) + ',' + lon[i].toFixed(5);
@@ -3031,7 +3031,7 @@
     // para baixo, e é o local que a pessoa veio ver. A ressalva continua na
     // tela, junto das distâncias que ela qualifica.
     s2.appendChild(el('p', 'chamada',
-      'Distância em linha reta até a coordenada declarada no CNES. 38,5% dos '
+      'Distância em linha reta até o ponto de cada estabelecimento. 38,5% dos '
       + 'endereços não têm número, e nesses casos o ponto pode estar a '
       + 'centenas de metros do local real.'));
     corpo.appendChild(s2);

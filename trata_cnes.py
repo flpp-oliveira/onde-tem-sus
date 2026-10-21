@@ -68,7 +68,7 @@ def num(s):
     except ValueError:
         return None
 
-print("competência %s (site — sem correção de posição)" % COMP)
+print("competência %s (site — posição do CNES, salvo insumos/correcoes.csv)" % COMP)
 if not os.path.isdir(DATA):
     sys.exit("pasta não encontrada: %s" % DATA)
 
@@ -468,6 +468,66 @@ with open(cam_base, "rb") as f:
 print("  base tratada: %s  %d linhas · %.1f MB" %
       (os.path.basename(cam_base), len(ordem), tam_base / 1024 ** 2))
 print("    sha256: %s" % _h.hexdigest())
+
+# ------------------------------------------------- correções de reports -----
+# O site mostra a coordenada que o CNES declara. A exceção são as correções
+# de insumos/correcoes.csv: cada linha vem de um report da população,
+# analisado à mão, e diz qual ponto o site usa no lugar do declarado. Elas
+# entram AQUI, depois da base tratada, que continua sendo o CNES puro: só o
+# que vai para o site muda. O arquivo é o registro permanente da decisão,
+# porque o report é apagado depois da análise; não leva nada de quem enviou.
+# Linha cujo estabelecimento não está no mapa, ou cujo ponto o CNES já
+# corrigiu na fonte, é avisada, nunca ignorada em silêncio.
+#
+# O arquivo é editado à mão, então o leitor é desconfiado: aceita o BOM que o
+# Excel e o Bloco de Notas põem, devolve o zero à esquerda que o Excel tira do
+# código CNES, e para com mensagem clara diante de cabeçalho errado, CNES
+# repetido ou ponto longe demais do declarado, que quase sempre é dígito
+# trocado e mandaria o estabelecimento para outra cidade.
+CORR_MESMO_PONTO_M = 30       # o CNES já declara um ponto a até isto da correção
+CORR_MAX_M = 50000            # acima disto, é erro de digitação até prova em contrário
+def _metros(la1, lo1, la2, lo2):
+    return 6371000 * math.hypot(math.radians(lo2 - lo1) * math.cos(math.radians(la2)),
+                                math.radians(la2 - la1))
+cam_corr = os.path.join(INSUMOS, "correcoes.csv")
+if os.path.exists(cam_corr):
+    por_cnes = {p["cnes"]: p for p in pts}
+    with open(cam_corr, encoding="utf-8-sig", newline="") as f:
+        leitor = csv.DictReader(f, delimiter=";")
+        faltam = {"cnes", "lat", "lon", "data", "motivo"} - set(leitor.fieldnames or [])
+        if faltam:
+            sys.exit("correcoes.csv: faltam as colunas %s (cabeçalho: cnes;lat;lon;data;motivo)"
+                     % ", ".join(sorted(faltam)))
+        linhas = list(leitor)
+    print("  correções de reports: %d em insumos/correcoes.csv" % len(linhas))
+    vistos = set()
+    for n, c in enumerate(linhas, start=2):
+        cod = (c["cnes"] or "").strip()
+        if not cod.isdigit() or len(cod) > 7:
+            sys.exit("correcoes.csv, linha %d: código CNES inválido: %r" % (n, cod))
+        cod = cod.zfill(7)
+        if cod in vistos:
+            sys.exit("correcoes.csv, linha %d: CNES %s repetido; deixe uma linha só" % (n, cod))
+        vistos.add(cod)
+        la, lo = num(c["lat"]), num(c["lon"])
+        if la is None or lo is None or not (LAT_MIN <= la <= LAT_MAX and LON_MIN <= lo <= LON_MAX):
+            sys.exit("correcoes.csv, linha %d: coordenada inválida para %s" % (n, cod))
+        p = por_cnes.get(cod)
+        if p is None:
+            print("    AVISO %s não está no mapa nesta competência (saiu do CNES ou ficou sem "
+                  "coordenada válida): correção não aplicada" % cod)
+            continue
+        dist = _metros(p["la"], p["lo"], la, lo)
+        if dist <= CORR_MESMO_PONTO_M:
+            print("    AVISO %s: o CNES já declara um ponto a %d m da correção; "
+                  "a linha pode sair" % (cod, round(dist)))
+            continue
+        if dist > CORR_MAX_M:
+            sys.exit("correcoes.csv, linha %d: %s moveria %d km; confira os dígitos"
+                     % (n, cod, round(dist / 1000)))
+        print("    %s %s: ponto movido %d m (%s)"
+              % (cod, p["nome"][:40], round(dist), (c["data"] or "").strip()))
+        p["la"], p["lo"] = la, lo
 
 # ------------------------------------------------------------ serialização --
 pts.sort(key=lambda p: (p["la"], p["lo"]))
