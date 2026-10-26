@@ -482,16 +482,33 @@ print("    sha256: %s" % _h.hexdigest())
 # O arquivo é editado à mão, então o leitor é desconfiado: aceita o BOM que o
 # Excel e o Bloco de Notas põem, devolve o zero à esquerda que o Excel tira do
 # código CNES, e para com mensagem clara diante de cabeçalho errado, CNES
-# repetido ou ponto longe demais do declarado, que quase sempre é dígito
-# trocado e mandaria o estabelecimento para outra cidade.
+# repetido ou coordenada fora do Brasil.
+#
+# A distância NÃO trava: o erro do CNES costuma ser de dezenas ou centenas de
+# km (grau trocado, ponto no mar, cidade homônima), e só com os pontos do
+# CNES não dá para saber o tamanho real de um município — uma regra
+# automática barrava correção legítima em cidade grande ou na Amazônia e
+# deixava passar erro em município de um só estabelecimento. Como toda linha
+# já foi conferida à mão, o script mostra, para cada uma, quanto o ponto
+# andou e a que distância fica do centro do município (mediana dos outros
+# estabelecimentos dele), e marca para nova conferência a que cair longe do
+# padrão da cidade: é o que denuncia um dígito trocado neste arquivo.
 CORR_MESMO_PONTO_M = 30       # o CNES já declara um ponto a até isto da correção
-CORR_MAX_M = 50000            # acima disto, é erro de digitação até prova em contrário
+CORR_PISO_MUN_M = 30000
 def _metros(la1, lo1, la2, lo2):
     return 6371000 * math.hypot(math.radians(lo2 - lo1) * math.cos(math.radians(la2)),
                                 math.radians(la2 - la1))
+def _mediana(v):
+    v = sorted(v)
+    k = len(v) // 2
+    return v[k] if len(v) % 2 else (v[k - 1] + v[k]) / 2
 cam_corr = os.path.join(INSUMOS, "correcoes.csv")
 if os.path.exists(cam_corr):
     por_cnes = {p["cnes"]: p for p in pts}
+    # foto do município ANTES de qualquer correção, para uma não influir na outra
+    do_mun = collections.defaultdict(list)
+    for p in pts:
+        do_mun[p["mun"]].append((p["la"], p["lo"], p["cnes"]))
     with open(cam_corr, encoding="utf-8-sig", newline="") as f:
         leitor = csv.DictReader(f, delimiter=";")
         faltam = {"cnes", "lat", "lon", "data", "motivo"} - set(leitor.fieldnames or [])
@@ -522,11 +539,19 @@ if os.path.exists(cam_corr):
             print("    AVISO %s: o CNES já declara um ponto a %d m da correção; "
                   "a linha pode sair" % (cod, round(dist)))
             continue
-        if dist > CORR_MAX_M:
-            sys.exit("correcoes.csv, linha %d: %s moveria %d km; confira os dígitos"
-                     % (n, cod, round(dist / 1000)))
-        print("    %s %s: ponto movido %d m (%s)"
-              % (cod, p["nome"][:40], round(dist), (c["data"] or "").strip()))
+        outros = [(a, b) for a, b, k in do_mun[p["mun"]] if k != cod]
+        if outros:
+            cla, clo = _mediana(a for a, _ in outros), _mediana(b for _, b in outros)
+            tipico = _mediana(_metros(cla, clo, a, b) for a, b in outros)
+            longe = _metros(cla, clo, la, lo)
+            onde = "%.1f km do centro de %s" % (longe / 1000, muns[p["mun"]])
+            if longe > max(CORR_PISO_MUN_M, 2 * tipico):
+                onde += (" — CONFIRA: longe do padrão da cidade (típico %.1f km)"
+                         % (tipico / 1000))
+        else:
+            onde = "único estabelecimento de %s: CONFIRA o município" % muns[p["mun"]]
+        print("    %s %s: ponto movido %d m (%s); fica a %s"
+              % (cod, p["nome"][:40], round(dist), (c["data"] or "").strip(), onde))
         p["la"], p["lo"] = la, lo
 
 # ------------------------------------------------------------ serialização --

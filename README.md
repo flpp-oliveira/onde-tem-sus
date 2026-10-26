@@ -160,8 +160,11 @@ sendo o CNES puro: só o que vai para o site muda. Cada correção aparece no
 progresso com a distância do ponto movido. Uma linha cujo estabelecimento não
 está no mapa da competência não é aplicada, e uma cujo ponto o CNES já passou a
 declarar (a até 30 m) é avisada para sair do arquivo. O script para, com a linha
-indicada, diante de cabeçalho errado, CNES repetido, coordenada inválida ou ponto
-a mais de 50 km do declarado, que costuma ser dígito trocado.
+indicada, diante de cabeçalho errado, código inválido, CNES repetido ou coordenada
+fora do Brasil. A distância não trava: para cada correção ele mostra quanto o
+ponto andou e a que distância fica do centro do município (mediana dos outros
+estabelecimentos dele), e marca "CONFIRA" quando o ponto cai longe do padrão da
+cidade, o que costuma ser dígito trocado neste arquivo.
 Depois é regerar o site (`trata_cnes.py`, `gera_site.py`) e publicar. O arquivo
 não leva nada de quem enviou o report: é o registro permanente da decisão.
 
