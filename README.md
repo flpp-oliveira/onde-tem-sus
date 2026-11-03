@@ -23,7 +23,8 @@ Artefato de trabalho de conclusão de curso.
 | `gera_site.py` | monta de `dados_tratados.json` os arquivos que o mapa busca |
 | `gera_regioes.py` | casa as regiões de saúde com os municípios |
 | `nomes.py` | a regra de nome próprio (maiúsculas e acentos) dos nomes de região |
-| `web/` | o site pronto: `index.html`, `sobre.html` e os seis arquivos de dado |
+| `verifica_reproducao.py` | regera numa cópia limpa e confere que as saídas batem com o commit |
+| `web/` | o site pronto: `index.html`, `sobre.html` e os sete arquivos de dado |
 | `auditoria_bairros_202606.csv` | as 443 grafias de bairro alteradas, uma por linha |
 | `functions/api/report.js` | a API que recebe as correções enviadas pela população |
 | `schema.sql` | a tabela onde as correções são gravadas |
@@ -73,13 +74,29 @@ python trata_cnes.py 202606
 python gera_site.py
 ```
 
-O primeiro trata a base e deixa `web/fichas.json`, `auditoria_bairros_202606.csv`,
-a base tratada e `dados_tratados.json`. O segundo lê esse último e escreve os
-cinco arquivos que o mapa busca ao abrir. O `regioes.json` sai de
+O primeiro trata a base e deixa `web/fichas.json`, `web/horarios.json`,
+`auditoria_bairros_202606.csv`, a base tratada e `dados_tratados.json`. O segundo
+lê esse último e escreve os quatro arquivos que o mapa busca ao abrir. O `regioes.json` sai de
 `python gera_regioes.py`, que só precisa rodar quando a tabela de regiões mudar.
 
 A base tratada e o `dados_tratados.json` não são versionados: somam 51 MB
 regeneráveis a qualquer momento pelos comandos acima.
+
+Para conferir que os arquivos do commit atual saem exatamente da base, rode
+(Python 3.12 ou mais novo):
+
+```
+python verifica_reproducao.py
+```
+
+Ele confere os 109 arquivos da base contra os hashes, extrai o commit atual numa
+pasta temporária ao lado do projeto, regera tudo lá dentro e compara cada saída
+versionada (os sete arquivos de dado de `web/` e a auditoria de bairros) com a
+gravada no commit, imprimindo `IGUAL` ou `DIFERENTE` para cada uma. Termina com
+erro se alguma divergir ou não for gerada. Mudanças ainda não commitadas não
+entram na conferência; o script avisa quando houver alguma no código ou nos dados. A base entra na cópia por hard link, sem duplicar os 2,82 GB, e
+apagar a pasta temporária não a alcança. Por isso a pasta precisa estar no mesmo
+disco da base. Leva cerca de 40 segundos.
 
 Não estão aqui os dois documentos do Ministério da Saúde consultados para
 interpretar a base: guardá-los seria redistribuir obra de terceiro. A origem, a
