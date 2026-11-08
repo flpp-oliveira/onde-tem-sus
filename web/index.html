@@ -390,6 +390,7 @@
   .cartao .acoes a:hover{background:#0d3f78}
   .cartao .acoes button{background:var(--toque);color:var(--ink)}
   .cartao .acoes button:hover{background:var(--line)}
+  .cartao .acoes .todos{grid-column:1/-1}
 
   .vazio{padding:28px 18px;color:var(--muted);font-size:13px;text-align:center}
   .dica{padding:16px 18px;color:var(--muted);font-size:12.5px;line-height:1.55}
@@ -1085,6 +1086,26 @@
     let a = estabPorMun.get(munDe[i]);
     if(!a) estabPorMun.set(munDe[i], a = []);
     a.push(i);
+  }
+
+  // Estabelecimentos que dividem a mesma coordenada. O mapa desenha um pino só
+  // para eles e o clique acerta um, então os outros não tinham como ser abertos
+  // pelo mapa. Medido em 03/11/2026: 1.462 pontos reúnem 3.583 estabelecimentos,
+  // até 57 num ponto só (em geral a coordenada da sede do município). A posição
+  // continua a que o CNES declara: a escolha vem por lista, sem afastar pinos.
+  const pontoDe = new Map();   // i -> todos do mesmo ponto, só onde há mais de um
+  {
+    // Chave numérica, e não texto: são 108 mil, e criar uma string por
+    // estabelecimento pesa na carga do celular. A coordenada chega como
+    // inteiro ÷1e5, então o arredondamento é exato, e o produto cabe em 2^53.
+    const porPonto = new Map();
+    for(let i=0;i<N;i++){
+      const k = (Math.round(lat[i]*1e5) + 9e6) * 4e7 + (Math.round(lon[i]*1e5) + 2e7);
+      let a = porPonto.get(k);
+      if(!a) porPonto.set(k, a = []);
+      a.push(i);
+    }
+    for(const a of porPonto.values()) if(a.length > 1) for(const i of a) pontoDe.set(i, a);
   }
 
   // Os atalhos da lista do município. Casam por NOME no catálogo, e não por
@@ -1881,10 +1902,24 @@
   // Só as vistas que listam estabelecimento precisam voltar a pintar; as
   // outras listam cidade, e cidade o recorte não esconde.
   function repintaVista(){
+    // O cartão aberto em "Perto de você" reconta o botão do ponto: a contagem
+    // segue o filtro, e uma contagem velha levava a uma lista vazia.
+    if(cartao && cartaoIdx >= 0){
+      const ac = cartao.getElement().querySelector('.acoes');
+      const velho = ac && ac.querySelector('.todos');
+      if(velho) velho.remove();
+      const novo = ac && botaoTodos(cartaoIdx);
+      if(novo) ac.appendChild(novo);
+    }
     const e = pilha[pilha.length - 1];
     if(!e) return;
     if(e.tipo === 'mun')         verMun(e.f);
     else if(e.tipo === 'bairro') verBairro(e.x);
+    else if(e.tipo === 'ponto')  verPonto(e);
+    else if(e.tipo === 'estab'){
+      const v = corpo.querySelector('.atalhoPonto');
+      if(v) v.replaceWith(atalhoPonto(e.i));
+    }
   }
 
   // Quem enxerga vê o número grande mudar na cara. Quem ouve não recebe nada:
@@ -2926,6 +2961,10 @@
     fic.onclick = () => { fechaCartao(); vaiParaEstab(i); };
     acoes.appendChild(rota);
     acoes.appendChild(fic);
+    // A gota é um ponto, e no ponto pode haver outros que não entraram na lista
+    // dos mais perto: daqui se chega a todos.
+    const todos = botaoTodos(i);
+    if(todos) acoes.appendChild(todos);
     raiz.appendChild(acoes);
 
     // Preso à gota como ela está DESENHADA: se ela foi afastada da vizinha, o
@@ -3374,6 +3413,9 @@
         'não atende o público em geral.'));
     corpo.appendChild(acoesFicha(i));
 
+    // Quem chega pela busca ou pelo link também descobre os vizinhos de ponto.
+    corpo.appendChild(atalhoPonto(i));
+
     const s1 = secao(null);
     const ul = el('ul','ficha');
     ul.appendChild(itemFicha('Endereço', ficha ? cap(ficha.end[i]) : ''));
@@ -3683,6 +3725,95 @@
     corpo.appendChild(secaoEstabs(ids, () => verBairro(x), x.m));
   }
 
+  // ---- vários estabelecimentos num ponto só --------------------------------
+  // O nível guarda o primeiro do grupo (`i0`): o grupo inteiro sai de pontoDe.
+  // Sem alfinete: a cor dele diz a natureza de UM estabelecimento, e o ponto
+  // pode juntar públicos e conveniados.
+  function verPonto(e){
+    vista = 'lugar';
+    marcaSelecionado(null);
+    corpo.className = 'corpo colunado';
+    g('bVoltar').hidden = false;
+    limpaCorpo();
+    const ids = pontoDe.get(e.i0) || [e.i0];
+    const capa = el('div','capa');
+    capa.appendChild(el('h2', null, fmt(ids.length) + ' estabelecimentos neste ponto'));
+    // Doze pontos juntam estabelecimentos de dois municípios vizinhos: o texto
+    // nomeia todos, e não só o do primeiro.
+    const muns = [...new Set(ids.map(i => munDe[i]))]
+      .map(m => catalogo.muns[m] + ' (' + catalogo.ufs[catalogo.munUF[m]] + ')');
+    capa.appendChild(el('div','escopo', 'Mesma coordenada no CNES, em ' + muns.join(' e ')));
+    corpo.appendChild(capa);
+    // Sem município de referência: a distância seria a mesma em todas as
+    // linhas, e trocaria a ordem alfabética por um empate.
+    corpo.appendChild(secaoEstabs(ids, () => verPonto(e), -1));
+  }
+
+  // Mesma chegada da ficha: no celular a folha sobe até o meio e o ponto fica
+  // na faixa livre acima dela.
+  function vaiParaPonto(i){
+    const e = {tipo:'ponto', i0: (pontoDe.get(i) || [i])[0]};
+    empilha(e);
+    verPonto(e);
+    let f = FOLGA();
+    if(innerWidth <= 820){
+      if(parada < 1) vaiPara(1);
+      f = folgaAcimaDaFolha(paradas()[parada]);
+    }
+    map.flyTo({center:[lon[e.i0], lat[e.i0]], zoom:16, duration:900, padding:f});
+  }
+
+  // Quantos do ponto do estabelecimento i passam pelo recorte atual: com um
+  // só visível, o clique abre a ficha dele direto.
+  function visiveisNoPonto(i){
+    const a = pontoDe.get(i);
+    if(!a) return 1;
+    return semRecorte() ? a.length : a.filter(passa).length;
+  }
+  // Os outros do mesmo ponto que a lista vai mostrar. A lista obedece ao
+  // recorte, então o atalho que leva a ela conta pelo mesmo critério: sem isso,
+  // "Perto de você" (que não filtra) oferecia uma lista que abria vazia.
+  const outrosNoPonto = i =>
+    (pontoDe.get(i) || []).filter(j => j !== i && (semRecorte() || passa(j)));
+
+  // O atalho da ficha. Fica num bloco próprio, sempre presente (vazio quando
+  // não há outros), para o filtro poder recontá-lo sem redesenhar a ficha —
+  // que apagaria um report sendo escrito.
+  function atalhoPonto(i){
+    const sv = secao(null);
+    sv.classList.add('atalhoPonto');
+    const n = outrosNoPonto(i).length;
+    if(!n){ sv.hidden = true; return sv; }
+    const lv = el('ul','lista');
+    lv.appendChild(itemLista(fmt(n), 'Também neste ponto',
+      (n === 1 ? '1 outro estabelecimento' : fmt(n) + ' outros estabelecimentos')
+        + ' com a mesma coordenada', undefined, () => vaiParaPonto(i)));
+    sv.appendChild(lv);
+    return sv;
+  }
+  // O botão do cartão de "Perto de você", pelo mesmo critério.
+  function botaoTodos(i){
+    const viz = outrosNoPonto(i);
+    if(!viz.length) return null;
+    const b = el('button', 'todos', viz.length === 1
+      ? 'Ver o outro deste ponto' : 'Ver os outros ' + fmt(viz.length) + ' deste ponto');
+    b.type = 'button';
+    b.onclick = () => { fechaCartao(); vaiParaPonto(i); };
+    return b;
+  }
+
+  // Ponto com estabelecimentos de dois municípios: o município dele é o de onde
+  // se veio, se for um dos dois; senão, o do primeiro do grupo.
+  function munDoPonto(e){
+    const ids = pontoDe.get(e.i0) || [e.i0];
+    const ms = new Set(ids.map(i => munDe[i]));
+    const veio = pilha.find(x => x.tipo === 'mun' && ms.has(x.f.properties.m));
+    return veio ? veio.f.properties.m : munDe[e.i0];
+  }
+  // O nível do ponto na pilha, se a ficha de i foi aberta a partir dele.
+  const pontoNaPilha = i =>
+    pilha.find(x => x.tipo === 'ponto' && pontoDe.get(x.i0) === pontoDe.get(i)) || null;
+
   // ---- painel da região ---------------------------------------------------
   const estabDaRegiao = r =>
     (munsDaRegiao.get(r) || []).flatMap(m => estabPorMun.get(m) || []);
@@ -3921,6 +4052,7 @@
     if(e.tipo === 'bairro') return e.x.m;
     if(e.tipo === 'lugar')  return e.m;
     if(e.tipo === 'estab')  return munDe[e.i];
+    if(e.tipo === 'ponto')  return munDoPonto(e);
     if(e.tipo === 'perto')  return observador ? observador.mun : -1;
     return -1;
   }
@@ -3966,9 +4098,20 @@
     // A ficha aberta a partir de "Perto de você" volta para lá: a lista é o
     // lugar de onde a pessoa saiu, e o município do estabelecimento pode nem
     // ser o dela — o mais perto às vezes fica do outro lado da divisa.
+    // A ficha escolhida na lista de um ponto volta para essa lista, e a lista
+    // volta para onde se estava — o que, a partir da gota, é "Perto de você".
     if(e.tipo === 'estab'){
+      const pn = pontoNaPilha(e.i);
+      if(pn){
+        const c2 = cadeia(pn);
+        c2.push(e);
+        return c2;
+      }
+    }
+    if(e.tipo === 'estab' || e.tipo === 'ponto'){
       const pt = pilha.find(x => x.tipo === 'perto');
-      if(pt && pertoIds.includes(e.i)){
+      const ids = e.tipo === 'estab' ? [e.i] : (pontoDe.get(e.i0) || []);
+      if(pt && ids.some(i => pertoIds.includes(i))){
         const c2 = cadeia(pt);
         c2.push(e);
         return c2;
@@ -3980,6 +4123,7 @@
     else if(e.tipo === 'bairro') f = munPorIndice.get(e.x.m);
     else if(e.tipo === 'lugar')  f = munPorIndice.get(e.m);
     else if(e.tipo === 'estab')  f = munDoEstab(e.i);
+    else if(e.tipo === 'ponto')  f = munPorIndice.get(munDoPonto(e));
     const sigla = e.tipo === 'uf' ? e.sigla : (f && f.properties.uf);
     if(sigla && UF[sigla] && e.tipo !== 'uf') c.push({tipo:'uf', sigla});
     const ctx = f ? contextoRegiao(f.properties.m) : null;
@@ -3993,8 +4137,13 @@
     // cadastro, como se fazia, punha no caminho de volta uma parada que ninguém
     // tinha escolhido: quem abriu um pino no mapa quer sair dele para a cidade.
     // Quem entrou no bairro de propósito, não: ali a volta é para o bairro.
-    if(e.tipo === 'estab' && f){
-      const bai = bairroNaPilha(f.properties.m, bairroDe[e.i]);
+    // O ponto segue a mesma regra, olhando todos do grupo: num terço dos
+    // pontos os estabelecimentos declaram bairros diferentes, e basta um ser o
+    // bairro de onde se saiu.
+    if((e.tipo === 'estab' || e.tipo === 'ponto') && f){
+      const ids = e.tipo === 'estab' ? [e.i] : (pontoDe.get(e.i0) || []);
+      let bai = null;
+      for(const i of ids) if((bai = bairroNaPilha(munDe[i], bairroDe[i]))) break;
       if(bai) c.push(bai);
     }
     c.push(e);
@@ -4010,6 +4159,7 @@
     if(e.tipo === 'bairro') return 'bai:' + e.x.m + ':' + e.x.b;
     if(e.tipo === 'lugar')  return 'lug:' + e.nome + ':' + e.lng;
     if(e.tipo === 'estab')  return 'est:' + e.i;
+    if(e.tipo === 'ponto')  return 'pon:' + e.i0;
     if(e.tipo === 'perto')  return 'perto';
     return 'inicio';
   }
@@ -4059,6 +4209,8 @@
       map.flyTo({center:[e.lng, e.lat], zoom:14, duration:700, padding:FOLGA()});
     else if(e.tipo === 'estab')
       map.flyTo({center:[lon[e.i], lat[e.i]], zoom:16, duration:700, padding:FOLGA()});
+    else if(e.tipo === 'ponto')
+      map.flyTo({center:[lon[e.i0], lat[e.i0]], zoom:16, duration:700, padding:FOLGA()});
     else if(e.tipo === 'perto')  enquadraPerto();
     else if(e.tipo === 'inicio') enquadraBrasil(700);
   }
@@ -4073,6 +4225,7 @@
     else if(e.tipo === 'bairro')  verBairro(e.x);
     else if(e.tipo === 'lugar')   verLugarCarta(e.nome, e.classe, e.lng, e.lat);
     else if(e.tipo === 'estab')   verEstab(e.i);
+    else if(e.tipo === 'ponto')   verPonto(e);
     else if(e.tipo === 'perto'){
       // chegar em "Perto de você" pelo Voltar encerra a busca
       if(baseBusca){ campo.value = ''; g('bLimpar').hidden = true; baseBusca = false; }
@@ -4269,7 +4422,11 @@
               ? map.queryRenderedFeatures(caixa, {layers:['estab']}) : [];
     if(pin.length){
       campo.value = ''; g('bLimpar').hidden = true;
-      vaiParaEstab(pin[0].properties.i); return;
+      // Um pino pode ser vários estabelecimentos com a mesma coordenada: aí a
+      // escolha entre eles vem antes da ficha (RF09).
+      const i = pin[0].properties.i;
+      if(visiveisNoPonto(i) > 1) vaiParaPonto(i); else vaiParaEstab(i);
+      return;
     }
     const cid = map.queryRenderedFeatures(caixa, {layers:camadasCidade});
     if(cid.length){
