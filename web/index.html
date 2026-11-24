@@ -2783,7 +2783,7 @@
     }
 
     // A ressalva só aparece quando há distância para ressalvar. Medido na
-    // base: 38,5% dos endereços não têm número, e nesses o ponto publicado
+    // base: 39,2% dos endereços não têm número, e nesses o ponto publicado
     // costuma cair no centro da via ou do CEP.
     // Distância só no município ONDE A PESSOA ESTÁ. Guardada a posição, ela
     // valia para qualquer lugar que se abrisse depois — e em São Paulo, com
@@ -2793,7 +2793,7 @@
     const dObs = i => haversine(observador.lat, observador.lon, lat[i], lon[i]);
     if(perto)
       s2.appendChild(el('p','chamada',
-        'Distância em linha reta até o ponto de cada estabelecimento. 38,5% dos '
+        'Distância em linha reta até o ponto de cada estabelecimento. 39,2% dos '
         + 'endereços não têm número, e nesses casos o ponto pode estar a '
         + 'centenas de metros do local real.'));
 
@@ -3076,7 +3076,7 @@
     // para baixo, e é o local que a pessoa veio ver. A ressalva continua na
     // tela, junto das distâncias que ela qualifica.
     s2.appendChild(el('p', 'chamada',
-      'Distância em linha reta até o ponto de cada estabelecimento. 38,5% dos '
+      'Distância em linha reta até o ponto de cada estabelecimento. 39,2% dos '
       + 'endereços não têm número, e nesses casos o ponto pode estar a '
       + 'centenas de metros do local real.'));
     corpo.appendChild(s2);
