@@ -1626,6 +1626,24 @@
   const controleLocal = new maplibregl.GeolocateControl({
     positionOptions:{enableHighAccuracy:false}, trackUserLocation:false});
   map.addControl(controleLocal, 'bottom-right');
+  // Todo marcador do MapLibre recebe, a cada addTo, o aria-label do
+  // 'Marker.Title' numa div sem papel: o leitor de tela chamava o ponto azul
+  // da própria pessoa de "Estabelecimento", e aria-label em div sem role é
+  // inválido (axe: aria-prohibited-attr). Cada marcador ganha aqui o papel de
+  // imagem e o nome do que ele é; o que só enfeita sai da árvore de
+  // acessibilidade. Vale chamar DEPOIS do addTo, que regrava o rótulo.
+  function rotulaMarcador(e, rotulo){
+    if(!e) return;
+    if(rotulo){ e.setAttribute('role','img'); e.setAttribute('aria-label', rotulo); }
+    else{ e.removeAttribute('aria-label'); e.setAttribute('aria-hidden','true'); }
+  }
+  // O controle repõe os dois marcadores a cada posição e só depois avisa com
+  // 'geolocate'; as classes são as que o próprio MapLibre documenta no CSS.
+  controleLocal.on('geolocate', () => {
+    const c = map.getCanvasContainer();
+    rotulaMarcador(c.querySelector('.maplibregl-user-location-dot'), 'Sua localização');
+    rotulaMarcador(c.querySelector('.maplibregl-user-location-accuracy-circle'), null);
+  });
   // A bolinha existe desde aqui, mas o resto do site só fica pronto bem mais
   // abaixo, depois de esperar o mapa carregar. Ela pode ser acionada antes
   // disso: a cortina de carga a cobre para o toque, não para o teclado. A
@@ -3272,6 +3290,8 @@
     e.appendChild(gota); e.appendChild(olho);
     alfineteSel = new maplibregl.Marker({element:e, anchor:'bottom'})
       .setLngLat([lon[i], lat[i]]).addTo(map);
+    rotulaMarcador(e, 'Estabelecimento selecionado' +
+                      (ficha && ficha.nome[i] ? ': ' + cap(ficha.nome[i]) : ''));
   }
 
   const TAM_MAX_EVIDENCIA = 1024 * 1024;   // 1 MB, o mesmo limite do servidor
@@ -3607,6 +3627,7 @@
       marcadaLat = la; marcadaLon = lo;
       if(alfinete) alfinete.remove();
       alfinete = new maplibregl.Marker({color:CORES().pub}).setLngLat([lo,la]).addTo(map);
+      rotulaMarcador(alfinete.getElement(), 'Local marcado para a correção');
       marcadoTxt.textContent = 'Local marcado: ' + la.toFixed(5) + ', ' + lo.toFixed(5);
       marcado.hidden = false;
     };
