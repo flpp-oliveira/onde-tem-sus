@@ -218,8 +218,8 @@
   .lista{list-style:none;margin:0;padding:0}
   /* ficha do estabelecimento */
   .ficha{list-style:none;margin:0;padding:0;font-size:13px}
-  .ficha li{display:flex;gap:12px;padding:9px 0;border-top:1px solid var(--line)}
-  .ficha li:first-child{border-top:0}
+  .ficha > div{display:flex;gap:12px;padding:9px 0;border-top:1px solid var(--line)}
+  .ficha > div:first-child{border-top:0}
   .ficha dt{flex:none;width:96px;color:var(--muted);font-size:12px}
   .ficha dd{margin:0;flex:1;color:var(--ink2);overflow-wrap:anywhere}
   .semdado{color:var(--muted);font-style:italic}
@@ -278,9 +278,14 @@
     padding:5px 11px;font:inherit;font-size:12px;color:var(--ink2);cursor:pointer;
   }
   .filtros button:hover{background:var(--plane)}
-  .filtros button[aria-pressed=true]{background:var(--ink);color:#fff;
+  /* A letra do selecionado é a cor do painel, e não branco fixo: no tema
+     escuro a --ink é quase branca, e o branco sobre ela sumia (1,1:1). */
+  .filtros button[aria-pressed=true]{background:var(--ink);color:var(--surface);
     border-color:var(--ink)}
-  .filtros em{font-style:normal;opacity:.65;margin-left:5px}
+  /* O número usa a cor apagada do site, que passa de 4,5:1 nos dois temas;
+     a opacidade de antes dava 3,3:1 no claro. */
+  .filtros em{font-style:normal;color:var(--muted);margin-left:5px}
+  .filtros button[aria-pressed=true] em{color:inherit}
   /* na lista de estabelecimentos a marca é o ponto da esfera, não uma sigla */
   .lista .marca i{width:9px;height:9px;border-radius:50%;display:block}
 
@@ -414,7 +419,8 @@
     justify-content:center;padding:0;
   }
   .trilho button:hover{background:var(--plane)}
-  .trilho button[aria-expanded=true]{background:var(--ink);color:#fff}
+  /* cor do painel, não branco fixo: no tema escuro a --ink é quase branca */
+  .trilho button[aria-expanded=true]{background:var(--ink);color:var(--surface)}
   .trilho svg{width:20px;height:20px;fill:currentColor}
 
   .avancado{
@@ -3300,7 +3306,7 @@
   let reportIdx = -1;
 
   function itemFicha(rotulo, valor, vazio){
-    const li = el('li');
+    const li = el('div');
     li.appendChild(el('dt', null, rotulo));
     const dd = el('dd');
     if(valor) dd.textContent = valor;
@@ -3313,7 +3319,7 @@
   // horário detalhado, o turno, como antes. O "atualizado em" diz de quando
   // é a declaração: um em cada dez tem mais de dois anos.
   function itemHorario(i){
-    const li = el('li');
+    const li = el('div');
     li.appendChild(el('dt', null, 'Horário'));
     const dd = el('dd', 'semana');
     const e = estadoAgora(i), fa = fraseAgora(e);
@@ -3417,7 +3423,9 @@
     corpo.appendChild(atalhoPonto(i));
 
     const s1 = secao(null);
-    const ul = el('ul','ficha');
+    // Pares termo e valor: dl > div > dt + dd, que é como o leitor de tela
+    // entende "Endereço: tal rua". dt e dd dentro de li não são HTML válido.
+    const ul = el('dl','ficha');
     ul.appendChild(itemFicha('Endereço', ficha ? cap(ficha.end[i]) : ''));
     ul.appendChild(itemFicha('Bairro', cap(catalogo.bairros[bairroDe[i]] || '')));
     ul.appendChild(itemFicha('Município',
@@ -3504,8 +3512,11 @@
     const campos = {};
     [['rua','Rua',120],['numero','Número',20],['bairro','Bairro',80]].forEach(
       ([k,t,max]) => {
-        cxTexto.appendChild(rot(t));
+        // o id liga o rótulo ao campo: sem ele, o leitor de tela anuncia só
+        // "campo de texto", três vezes
+        cxTexto.appendChild(rot(t, 'rEnd-' + k));
         const inp = el('input'); inp.type = 'text'; inp.maxLength = max;
+        inp.id = 'rEnd-' + k;
         campos[k] = inp; cxTexto.appendChild(inp);
       });
     bloco.appendChild(cxTexto);
